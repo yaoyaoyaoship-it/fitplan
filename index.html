@@ -238,16 +238,16 @@ header h1 span { color: var(--accent); }
   </div>
   <div class="card">
     <div class="card-header"><h3>✏️ 自由添加</h3></div>
-    <div style="display:flex; gap:6px; margin-bottom:6px;">
-      <input id="food-name" placeholder="食物名称" style="flex:2;background:var(--border);border:none;border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
-      <input id="food-cal" placeholder="千卡" type="number" style="flex:1;background:var(--border);border:none;border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
+    <div class="form-row">
+      <div class="form-group"><label>食物名称</label><input id="food-name" placeholder="如：麻辣烫"></div>
+      <div class="form-group"><label>热量 (kcal)</label><input id="food-cal" type="number" placeholder="500"></div>
     </div>
-    <div style="display:flex; gap:6px;">
-      <input id="food-protein" placeholder="蛋白g" type="number" style="flex:1;background:var(--border);border:none;border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
-      <input id="food-carbs" placeholder="碳水g" type="number" style="flex:1;background:var(--border);border:none;border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
-      <input id="food-fat" placeholder="脂肪g" type="number" style="flex:1;background:var(--border);border:none;border-radius:8px;color:var(--text);padding:8px;font-size:13px;">
+    <div class="form-row">
+      <div class="form-group"><label>蛋白质 (g)</label><input id="food-protein" type="number" placeholder="30"></div>
+      <div class="form-group"><label>碳水 (g)</label><input id="food-carbs" type="number" placeholder="50"></div>
+      <div class="form-group"><label>脂肪 (g)</label><input id="food-fat" type="number" placeholder="20"></div>
     </div>
-    <button class="btn btn-primary btn-block" style="margin-top:8px;" onclick="addCustomFood()">+ 添加</button>
+    <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="addCustomFood()">+ 添加</button>
   </div>
   <div class="card">
     <div class="card-header"><h3>📋 今日记录</h3><button class="btn btn-sm btn-outline" onclick="clearTodayDiet()">清空</button></div>
