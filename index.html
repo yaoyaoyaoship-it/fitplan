@@ -163,6 +163,26 @@ header h1 span { color: var(--accent); }
 .suggestion-card .sug-title { font-size: 14px; }
 .chart-container h3 { font-size: 15px; }
 .chart-label { font-size: 9px; }
+
+/* Food search */
+.food-search-dropdown { background: var(--border); border-radius: 8px; max-height: 180px; overflow-y: auto; margin-top: 4px; }
+.food-search-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; cursor: pointer; font-size: 13px; transition: background 0.15s;
+}
+.food-search-item:hover, .food-search-item:active { background: rgba(255,255,255,0.06); }
+.food-search-item .fs-name { flex:1; }
+.food-search-item .fs-macros { font-size: 11px; color: var(--text3); margin-left: 8px; }
+.food-search-online {
+  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
+  cursor: pointer; font-size: 13px; color: var(--accent3); border-top: 1px solid rgba(255,255,255,0.04);
+}
+.food-search-online:hover { background: rgba(162,155,254,0.1); }
+.food-search-online .spinner {
+  display: none; width: 14px; height: 14px; border: 2px solid var(--border);
+  border-top-color: var(--accent3); border-radius: 50%; animation: spin 0.6s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -243,13 +263,14 @@ header h1 span { color: var(--accent); }
   <div class="card">
     <div class="card-header"><h3>✏️ 自由添加</h3></div>
     <div class="form-row">
-      <div class="form-group"><label>食物名称</label><input id="food-name" placeholder="如：麻辣烫"></div>
-      <div class="form-group"><label>热量 (kcal)</label><input id="food-cal" type="number" placeholder="500"></div>
+      <div class="form-group"><label>食物名称</label><input id="food-name" placeholder="输入名称自动搜索..." oninput="searchFood()" autocomplete="off"></div>
+      <div class="form-group"><label>热量 (kcal)</label><input id="food-cal" type="number" placeholder="自动填充"></div>
     </div>
+    <div id="food-search-results" style="margin-bottom:8px;"></div>
     <div class="form-row">
-      <div class="form-group"><label>蛋白质 (g)</label><input id="food-protein" type="number" placeholder="30"></div>
-      <div class="form-group"><label>碳水 (g)</label><input id="food-carbs" type="number" placeholder="50"></div>
-      <div class="form-group"><label>脂肪 (g)</label><input id="food-fat" type="number" placeholder="20"></div>
+      <div class="form-group"><label>蛋白质 (g)</label><input id="food-protein" type="number" placeholder="自动填充"></div>
+      <div class="form-group"><label>碳水 (g)</label><input id="food-carbs" type="number" placeholder="自动填充"></div>
+      <div class="form-group"><label>脂肪 (g)</label><input id="food-fat" type="number" placeholder="自动填充"></div>
     </div>
     <button class="btn btn-primary btn-block" style="margin-top:12px;" onclick="addCustomFood()">+ 添加</button>
   </div>
@@ -440,6 +461,95 @@ const DEFAULT_FOODS = [
   { name:'🥗 凉拌黄瓜', cal:30, protein:1, carbs:4, fat:1 },{ name:'🍎 苹果 1个', cal:95, protein:0, carbs:25, fat:0 },
   { name:'🍌 香蕉 1根', cal:105, protein:1, carbs:27, fat:0 },{ name:'🥜 花生 1把', cal:160, protein:7, carbs:5, fat:14 },
   { name:'🍞 全麦面包 2片', cal:160, protein:8, carbs:28, fat:3 },{ name:'🐔 鸡胸肉', cal:130, protein:28, carbs:0, fat:3 },
+];
+
+// ============ FOOD SEARCH DATABASE ============
+const FOOD_DB = [
+  { name:'麻辣烫 1碗', cal:500, protein:25, carbs:45, fat:25 },
+  { name:'黄焖鸡米饭', cal:650, protein:30, carbs:65, fat:30 },
+  { name:'宫保鸡丁饭', cal:600, protein:28, carbs:60, fat:28 },
+  { name:'鱼香肉丝饭', cal:580, protein:22, carbs:62, fat:26 },
+  { name:'回锅肉饭', cal:650, protein:24, carbs:58, fat:35 },
+  { name:'糖醋里脊饭', cal:620, protein:25, carbs:65, fat:28 },
+  { name:'红烧牛肉面', cal:500, protein:22, carbs:55, fat:20 },
+  { name:'炸酱面', cal:480, protein:18, carbs:60, fat:18 },
+  { name:'兰州拉面', cal:420, protein:16, carbs:60, fat:12 },
+  { name:'蛋炒饭', cal:500, protein:14, carbs:60, fat:22 },
+  { name:'扬州炒饭', cal:550, protein:18, carbs:65, fat:25 },
+  { name:'酸辣粉', cal:380, protein:8, carbs:55, fat:14 },
+  { name:'螺蛳粉', cal:450, protein:12, carbs:55, fat:20 },
+  { name:'麻辣香锅 1人份', cal:650, protein:30, carbs:40, fat:42 },
+  { name:'火锅 1人份', cal:800, protein:45, carbs:50, fat:50 },
+  { name:'炸鸡汉堡套餐', cal:850, protein:35, carbs:75, fat:45 },
+  { name:'披萨 2片', cal:500, protein:20, carbs:55, fat:22 },
+  { name:'寿司 8个', cal:350, protein:15, carbs:55, fat:8 },
+  { name:'三明治', cal:350, protein:15, carbs:35, fat:16 },
+  { name:'鸡胸肉沙拉', cal:280, protein:28, carbs:12, fat:14 },
+  { name:'烤鱼 1人份', cal:400, protein:35, carbs:10, fat:25 },
+  { name:'水煮鱼', cal:450, protein:30, carbs:15, fat:30 },
+  { name:'酸菜鱼', cal:380, protein:28, carbs:12, fat:24 },
+  { name:'薯条 中份', cal:350, protein:4, carbs:42, fat:18 },
+  { name:'炸鸡 2块', cal:400, protein:25, carbs:20, fat:25 },
+  { name:'鸡排', cal:350, protein:20, carbs:18, fat:22 },
+  { name:'烤串 10串', cal:500, protein:35, carbs:10, fat:35 },
+  { name:'方便面', cal:450, protein:10, carbs:60, fat:18 },
+  { name:'自热火锅', cal:600, protein:25, carbs:45, fat:35 },
+  { name:'奶茶 中杯', cal:350, protein:3, carbs:55, fat:12 },
+  { name:'珍珠奶茶', cal:400, protein:3, carbs:65, fat:14 },
+  { name:'拿铁咖啡', cal:150, protein:8, carbs:12, fat:8 },
+  { name:'可乐 330ml', cal:140, protein:0, carbs:35, fat:0 },
+  { name:'果汁 250ml', cal:120, protein:0, carbs:28, fat:0 },
+  { name:'啤酒 500ml', cal:215, protein:2, carbs:18, fat:0 },
+  { name:'冰淇淋 1球', cal:150, protein:3, carbs:20, fat:8 },
+  { name:'薯片 1包', cal:500, protein:6, carbs:50, fat:30 },
+  { name:'巧克力 1条', cal:250, protein:3, carbs:25, fat:15 },
+  { name:'饼干 100g', cal:450, protein:8, carbs:60, fat:18 },
+  { name:'蛋糕 1块', cal:300, protein:5, carbs:35, fat:16 },
+  { name:'肉夹馍', cal:400, protein:18, carbs:40, fat:18 },
+  { name:'煎饼果子', cal:350, protein:15, carbs:40, fat:15 },
+  { name:'手抓饼', cal:300, protein:8, carbs:35, fat:14 },
+  { name:'麻辣拌', cal:450, protein:20, carbs:35, fat:25 },
+  { name:'米线', cal:380, protein:12, carbs:55, fat:12 },
+  { name:'水饺 15个', cal:450, protein:20, carbs:55, fat:16 },
+  { name:'馄饨 1碗', cal:300, protein:14, carbs:35, fat:12 },
+  { name:'汤圆 10个', cal:350, protein:6, carbs:55, fat:12 },
+  { name:'粽子 1个', cal:300, protein:8, carbs:45, fat:10 },
+  { name:'月饼 1个', cal:400, protein:6, carbs:50, fat:20 },
+  { name:'烧麦 4个', cal:280, protein:10, carbs:35, fat:12 },
+  { name:'肠粉', cal:200, protein:8, carbs:30, fat:6 },
+  { name:'盖浇饭 鱼香茄子', cal:520, protein:15, carbs:60, fat:24 },
+  { name:'盖浇饭 土豆牛肉', cal:580, protein:28, carbs:55, fat:28 },
+  { name:'沙县小吃 鸡腿饭', cal:550, protein:28, carbs:60, fat:22 },
+  { name:'沙县小吃 蒸饺', cal:320, protein:14, carbs:40, fat:12 },
+  { name:'冒菜 1人份', cal:550, protein:28, carbs:35, fat:32 },
+  { name:'干锅 1人份', cal:600, protein:32, carbs:35, fat:35 },
+  { name:'铁板烧', cal:550, protein:30, carbs:30, fat:32 },
+  { name:'卤肉饭', cal:600, protein:22, carbs:62, fat:30 },
+  { name:'猪脚饭', cal:650, protein:28, carbs:58, fat:35 },
+  { name:'叉烧饭', cal:580, protein:25, carbs:60, fat:26 },
+  { name:'鸡蛋灌饼', cal:300, protein:10, carbs:35, fat:14 },
+  { name:'油条 1根', cal:230, protein:5, carbs:28, fat:12 },
+  { name:'豆浆 甜', cal:120, protein:7, carbs:18, fat:2 },
+  { name:'豆腐脑', cal:150, protein:10, carbs:15, fat:6 },
+  { name:'热干面', cal:450, protein:14, carbs:60, fat:16 },
+  { name:'担担面', cal:420, protein:15, carbs:55, fat:15 },
+  { name:'凉皮', cal:350, protein:8, carbs:55, fat:12 },
+  { name:'凉面', cal:380, protein:10, carbs:58, fat:12 },
+  { name:'烤冷面', cal:350, protein:12, carbs:45, fat:14 },
+  { name:'关东煮 5串', cal:200, protein:15, carbs:20, fat:8 },
+  { name:'茶叶蛋 2个', cal:140, protein:12, carbs:2, fat:10 },
+  { name:'玉米 1根', cal:180, protein:5, carbs:38, fat:2 },
+  { name:'红薯 1个', cal:200, protein:3, carbs:46, fat:1 },
+  { name:'酸奶 1杯', cal:120, protein:5, carbs:18, fat:3 },
+  { name:'牛奶 250ml', cal:160, protein:8, carbs:12, fat:9 },
+  { name:'旺仔牛奶', cal:200, protein:5, carbs:28, fat:8 },
+  { name:'红牛', cal:110, protein:0, carbs:28, fat:0 },
+  { name:'雪糕 1支', cal:180, protein:3, carbs:25, fat:8 },
+  { name:'辣条 1包', cal:300, protein:5, carbs:35, fat:16 },
+  { name:'瓜子 1把', cal:160, protein:6, carbs:5, fat:14 },
+  { name:'坚果 1把', cal:170, protein:5, carbs:6, fat:15 },
+  { name:'牛肉干 50g', cal:150, protein:25, carbs:5, fat:4 },
+  { name:'蛋白粉 1勺', cal:120, protein:24, carbs:3, fat:1 },
 ];
 
 // ============ INIT ============
@@ -920,6 +1030,70 @@ function addCafeteriaFood(i) {
   renderDiet();
 }
 
+// ============ FOOD SEARCH ============
+function searchFood() {
+  const query = document.getElementById('food-name').value.trim().toLowerCase();
+  const resultsDiv = document.getElementById('food-search-results');
+  if (!query || query.length < 1) { resultsDiv.innerHTML = ''; return; }
+  
+  const matches = FOOD_DB.filter(f => f.name.toLowerCase().includes(query)).slice(0, 6);
+  let html = '';
+  if (matches.length > 0) {
+    html += '<div class="food-search-dropdown">';
+    matches.forEach((f, i) => {
+      html += `<div class="food-search-item" onclick="selectFood(${FOOD_DB.indexOf(f)})">
+        <span class="fs-name">${f.name}</span>
+        <span class="fs-macros">${f.cal}kcal | 蛋${f.protein}g 碳${f.carbs}g 脂${f.fat}g</span>
+      </div>`;
+    });
+    html += '</div>';
+  }
+  // Online search option
+  html += `<div class="food-search-online" onclick="searchOnline()">
+    <span class="spinner" id="search-spinner"></span>
+    🌐 联网搜索 "${query}"
+  </div>`;
+  resultsDiv.innerHTML = html;
+}
+
+function selectFood(idx) {
+  const f = FOOD_DB[idx];
+  document.getElementById('food-name').value = f.name;
+  document.getElementById('food-cal').value = f.cal;
+  document.getElementById('food-protein').value = f.protein;
+  document.getElementById('food-carbs').value = f.carbs;
+  document.getElementById('food-fat').value = f.fat;
+  document.getElementById('food-search-results').innerHTML = '';
+}
+
+async function searchOnline() {
+  const query = document.getElementById('food-name').value.trim();
+  if (!query) return;
+  const spinner = document.getElementById('search-spinner');
+  spinner.style.display = 'inline-block';
+  try {
+    const resp = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=3`);
+    const data = await resp.json();
+    spinner.style.display = 'none';
+    if (data.products && data.products.length > 0) {
+      const p = data.products[0];
+      const cal = Math.round((p.nutriments?.['energy-kcal_100g'] || p.nutriments?.energy_kcal_100g || 0) * (p.product_quantity || 100) / 100) || '';
+      const protein = Math.round((p.nutriments?.proteins_100g || 0) * (p.product_quantity || 100) / 100) || '';
+      const carbs = Math.round((p.nutriments?.carbohydrates_100g || 0) * (p.product_quantity || 100) / 100) || '';
+      const fat = Math.round((p.nutriments?.fat_100g || 0) * (p.product_quantity || 100) / 100) || '';
+      document.getElementById('food-cal').value = cal;
+      document.getElementById('food-protein').value = protein;
+      document.getElementById('food-carbs').value = carbs;
+      document.getElementById('food-fat').value = fat;
+      document.getElementById('food-search-results').innerHTML = `<div style="font-size:11px;color:var(--accent2);padding:4px 0;">✅ 已匹配: ${p.product_name || query} (${p.product_quantity || 'N/A'}g)</div>`;
+    } else {
+      document.getElementById('food-search-results').innerHTML = '<div style="font-size:11px;color:var(--text3);padding:4px 0;">未找到，请手动填写营养参数</div>';
+    }
+  } catch(e) {
+    spinner.style.display = 'none';
+    document.getElementById('food-search-results').innerHTML = '<div style="font-size:11px;color:var(--danger);padding:4px 0;">联网查询失败，请手动填写</div>';
+  }
+}
 function addCustomFood() {
   const name = document.getElementById('food-name').value.trim();
   const cal = parseInt(document.getElementById('food-cal').value) || 0;
