@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>FitPlan · 专属健身饮食计划</title>
+<style>
+:root {
+  --bg: #0f0f1a;
+  --card: #1a1a2e;
+  --card-hover: #1e1e36;
+  --accent: #ff6b6b;
+  --accent2: #4ecdc4;
+  --accent3: #a29bfe;
+  --text: #e8e8f0;
+  --text2: #b0b0c0;
+  --text3: #707088;
+  --border: #2a2a40;
+  --danger: #ff4757;
+  --success: #2ed573;
+  --warning: #ffa502;
+  --radius: 12px;
+  --shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 0 80px;
+  line-height: 1.5;
+  -webkit-tap-highlight-color: transparent;
+}
+header {
+  padding: 16px 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 10;
+  padding-bottom: 8px;
+}
+header h1 { font-size: 20px; font-weight: 800; color: var(--text); }
+header h1 span { color: var(--accent); }
+.btn-icon {
+  width: 36px; height: 36px; border-radius: 50%; border: none;
+  background: var(--card); color: var(--text2); font-size: 16px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.btn-icon:hover { background: var(--card-hover); }
+.tabs {
+  display: flex; gap: 4px; margin: 4px 16px 12px;
+  background: var(--card); border-radius: var(--radius); padding: 3px;
+}
+.tab {
+  flex:1; padding: 10px 0; text-align: center; border-radius: 10px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+  color: var(--text3); border: none; background: transparent;
+}
+.tab.active { background: var(--accent); color: #fff; }
+.page { display: none; padding: 0 16px; }
+.page.active { display: block; }
+
+/* Cards */
+.card {
+  background: var(--card); border-radius: var(--radius); padding: 16px;
+  margin-bottom: 12px; box-shadow: var(--shadow);
+}
+.card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 12px;
+}
+.card-header h3 { font-size: 14px; font-weight: 700; }
+.badge {
+  font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600;
+}
+.badge-red { background: rgba(255,107,107,0.15); color: var(--accent); }
+.badge-green { background: rgba(78,205,196,0.15); color: var(--accent2); }
+.badge-purple { background: rgba(162,155,254,0.15); color: var(--accent3); }
+
+/* Buttons */
+.btn {
+  padding: 10px 18px; border-radius: 10px; border: none; font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:active { opacity: 0.8; }
+.btn-secondary { background: var(--border); color: var(--text); }
+.btn-sm { padding: 6px 12px; font-size: 11px; border-radius: 8px; }
+.btn-block { width: 100%; }
+.btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text2); }
+
+/* Stats row */
+.stats-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.stat-box {
+  flex:1; background: var(--card); border-radius: var(--radius);
+  padding: 12px; text-align: center; box-shadow: var(--shadow);
+}
+.stat-box .value { font-size: 20px; font-weight: 800; color: var(--text); }
+.stat-box .label { font-size: 10px; color: var(--text3); margin-top: 2px; }
+
+/* Progress bar */
+.progress-bar {
+  height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%; border-radius: 3px; transition: width 0.3s;
+}
+.progress-red { background: var(--accent); }
+.progress-green { background: var(--accent2); }
+
+/* Exercise item */
+.exercise-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px; background: rgba(255,255,255,0.03); border-radius: 10px;
+  margin-bottom: 6px; transition: all 0.2s;
+}
+.exercise-item.done { opacity: 0.5; }
+.exercise-item .ex-info { flex: 1; }
+.exercise-item .ex-name { font-size: 13px; font-weight: 600; }
+.exercise-item .ex-detail { font-size: 11px; color: var(--text3); margin-top: 2px; }
+.ex-check {
+  width: 24px; height: 24px; border: 2px solid var(--border); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center; cursor: pointer;
+  flex-shrink: 0; transition: all 0.2s; margin-left: 10px; color: transparent;
+}
+.ex-check.checked { background: var(--accent2); border-color: var(--accent2); color: #fff; font-size: 14px; }
+.ex-input {
+  width: 50px; padding: 4px 6px; background: var(--border); border: none;
+  border-radius: 6px; color: var(--text); font-size: 12px; text-align: center;
+  margin-left: 8px;
+}
+
+/* Food items */
+.food-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px; background: rgba(255,255,255,0.03); border-radius: 10px;
+  margin-bottom: 6px;
+}
+.food-item .food-name { font-size: 13px; font-weight: 500; }
+.food-item .food-cal { font-size: 12px; color: var(--accent2); font-weight: 600; }
+.food-chips {
+  display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px;
+}
+.food-chip {
+  padding: 6px 14px; border-radius: 20px; font-size: 12px; cursor: pointer;
+  background: var(--border); color: var(--text2); border: none;
+  transition: all 0.15s; user-select: none;
+}
+.food-chip:active, .food-chip.selected { background: var(--accent2); color: var(--bg); }
+
+/* Macro bars */
+.macro-row {
+  display: flex; gap: 8px; margin-top: 8px;
+}
+.macro-item { flex: 1; }
+.macro-item .macro-label { font-size: 10px; color: var(--text3); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.macro-item .macro-val { font-size: 10px; color: var(--text2); }
+
+/* Chart */
+.chart-container {
+  background: var(--card); border-radius: var(--radius); padding: 16px;
+  margin-bottom: 12px; box-shadow: var(--shadow);
+}
+.chart-container h3 { font-size: 14px; margin-bottom: 12px; }
+.chart-bars {
+  display: flex; align-items: flex-end; gap: 3px; height: 120px;
+  justify-content: center;
+}
+.chart-bar {
+  flex:1; max-width: 16px; border-radius: 3px 3px 0 0;
+  transition: height 0.3s;
+  cursor: pointer;
+  position: relative;
+}
+.chart-bar:hover { opacity: 0.8; }
+.chart-labels {
+  display: flex; gap: 3px; justify-content: center; margin-top: 6px;
+}
+.chart-label { flex:1; max-width: 16px; font-size: 8px; color: var(--text3); text-align: center; }
+
+/* Modal */
+.modal-overlay {
+  display: none; position: fixed; top:0; left:0; right:0; bottom:0;
+  background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--card); border-radius: 16px; padding: 20px; width: 100%;
+  max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+}
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 12px; color: var(--text3); margin-bottom: 6px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 10px 12px; background: var(--border); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text); font-size: 14px;
+}
+.form-group input:focus, .form-group select:focus { outline: none; border-color: var(--accent); }
+.form-row { display: flex; gap: 8px; }
+.form-row .form-group { flex: 1; }
+
+/* Strength log */
+.strength-log {
+  font-size: 12px;
+}
+.strength-log .log-entry {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border);
+}
+.log-name { font-weight: 500; flex: 2; }
+.log-current { color: var(--accent2); flex: 2; text-align: center; }
+.log-prev { color: var(--text3); flex: 2; text-align: right; font-size: 11px; }
+
+/* Empty state */
+.empty {
+  text-align: center; padding: 40px 20px; color: var(--text3);
+}
+.empty .empty-icon { font-size: 40px; margin-bottom: 12px; }
+.empty p { font-size: 13px; }
+
+/* Period selector */
+.period-selector {
+  display: inline-flex; background: var(--border); border-radius: 8px; padding: 2px;
+}
+.period-btn {
+  padding: 6px 14px; border-radius: 7px; border: none; font-size: 12px;
+  font-weight: 600; cursor: pointer; background: transparent; color: var(--text3);
+  transition: all 0.2s;
+}
+.period-btn.active { background: var(--accent); color: #fff; }
+
+/* Weight input row */
+.weight-row {
+  display: flex; gap: 8px; align-items: center; margin-top: 8px;
+}
+.weight-row input {
+  flex:1; padding: 8px 12px; background: var(--border); border: 1px solid var(--border);
+  border-radius: 8px; color: var(--text); font-size: 13px;
+}
+.weight-row input:focus { outline: none; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Fit<span>Plan</span></h1>
+  <button class="btn-icon" onclick="openSettings()" title="设置">⚙</button>
+</header>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('training')">🏋️ 训练</button>
+  <button class="tab" onclick="switchTab('diet')">🍽 饮食</button>
+  <button class="tab" onclick="switchTab('progress')">📊 进度</button>
+</div>
+
+<!-- ===== TRAINING PAGE ===== -->
+<div class="page active" id="page-training">
+  <div class="stats-row">
+    <div class="stat-box"><div class="value" id="stat-streak">0</div><div class="label">连续打卡</div></div>
+    <div class="stat-box"><div class="value" id="stat-today-ex">0</div><div class="label">今日动作</div></div>
+    <div class="stat-box"><div class="value" id="stat-today-cal">0</div><div class="label">预估消耗</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3 id="training-title">今日训练</h3>
+      <span class="badge badge-red" id="period-badge">增肌期</span>
+    </div>
+    <div class="period-selector" style="margin-bottom:12px;">
+      <button class="period-btn active" onclick="switchPeriod('bulk')">增肌期</button>
+      <button class="period-btn" onclick="switchPeriod('cut')">减脂期</button>
+    </div>
+    <div id="exercise-list"></div>
+    <div style="display:flex; gap:8px; margin-top:8px;">
+      <select id="template-select" style="flex:1; padding:8px; background:var(--border); border:none; border-radius:8px; color:var(--text); font-size:12px;" onchange="loadTemplate()">
+        <option value="">选择训练模板...</option>
+      </select>
+      <button class="btn btn-secondary btn-sm" onclick="resetToday()">重置</button>
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:8px;" onclick="finishWorkout()">✅ 完成训练</button>
+  </div>
+</div>
+
+<!-- ===== DIET PAGE ===== -->
+<div class="page" id="page-diet">
+  <div class="card" style="margin-bottom:12px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+      <span style="font-size:13px; font-weight:600;">🍽 今日饮食</span>
+      <span style="font-size:13px;" id="diet-summary">0 / 0 kcal</span>
+    </div>
+    <div class="progress-bar" style="margin-bottom:10px;">
+      <div class="progress-fill progress-green" id="diet-progress" style="width:0%"></div>
+    </div>
+    <div class="macro-row">
+      <div class="macro-item">
+        <div class="macro-label"><span>🥩 蛋白质</span><span class="macro-val" id="macro-protein">0/0g</span></div>
+        <div class="progress-bar"><div class="progress-fill progress-red" id="bar-protein" style="width:0%"></div></div>
+      </div>
+      <div class="macro-item">
+        <div class="macro-label"><span>🍚 碳水</span><span class="macro-val" id="macro-carbs">0/0g</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="background:#ffa502;" id="bar-carbs" style="width:0%"></div></div>
+      </div>
+      <div class="macro-item">
+        <div class="macro-label"><span>🥑 脂肪</span><span class="macro-val" id="macro-fat">0/0g</span></div>
+        <div class="progress-bar"><div class="progress-fill progress-green" id="bar-fat" style="width:0%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>🏫 食堂菜品</h3></div>
+    <div class="food-chips" id="cafeteria-chips"></div>
+    <div style="font-size:11px; color:var(--text3); margin-top:6px;">点击菜品添加到今日饮食</div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><h3>✏️ 自由添加</h3></div>
+    <div style="display:flex; gap:6px; margin-bottom:6px;">
+      <input id="food-name" placeholder="食物名称" style="flex:2;">
+      <input id="food-cal" placeholder="千卡" type="number" style="flex:1;">
+    </div>
+    <div style="display:flex; gap:6px;">
+      <input id="food-protein" placeholder="蛋白g" type="number" style="flex:1;">
+      <input id="food-carbs" placeholder="碳水g" type="number" style="flex:1;">
+      <input id="food-fat" placeholder="脂肪g" type="number" style="flex:1;">
+    </div>
+    <button class="btn btn-primary btn-block" style="margin-top:8px;" onclick="addCustomFood()">+ 添加</button>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>📋 今日记录</h3>
+      <button class="btn btn-sm btn-outline" onclick="clearTodayDiet()">清空</button>
+    </div>
+    <div id="today-foods"><div class="empty"><p>还没记录饮食</p></div></div>
+  </div>
+</div>
+
+<!-- ===== PROGRESS PAGE ===== -->
+<div class="page" id="page-progress">
+  <div class="chart-container">
+    <h3>⚖️ 体重趋势 (30天)</h3>
+    <div class="chart-bars" id="weight-chart"></div>
+    <div class="chart-labels" id="weight-labels"></div>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text3);">
+        <span style="width:10px;height:10px;background:var(--accent);border-radius:2px;"></span> 增肌期
+      </div>
+      <div style="display:flex; align-items:center; gap:4px; font-size:10px; color:var(--text3);">
+        <span style="width:10px;height:10px;background:var(--accent2);border-radius:2px;"></span> 减脂期
+      </div>
+    </div>
+    <div class="weight-row">
+      <input id="new-weight" type="number" step="0.1" placeholder="输入今日体重 (kg)">
+      <button class="btn btn-primary btn-sm" onclick="recordWeight()">记录</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h3>💪 力量追踪</h3>
+      <select id="strength-ex-select" style="padding:6px 10px; background:var(--border); border:none; border-radius:8px; color:var(--text); font-size:12px;" onchange="showStrengthLog()">
+        <option value="">选择动作...</option>
+      </select>
+    </div>
+    <div class="strength-log" id="strength-log"><div class="empty"><p>选择一个动作查看力量变化</p></div></div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-box"><div class="value" id="stat-total-workouts">0</div><div class="label">总训练次数</div></div>
+    <div class="stat-box"><div class="value" id="stat-best-streak">0</div><div class="label">最长连续</div></div>
+    <div class="stat-box"><div class="value" id="stat-weight-change">0</div><div class="label">30天变化(kg)</div></div>
+  </div>
+</div>
+
+<!-- ===== SETTINGS MODAL ===== -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <h3>⚙ 个人数据</h3>
+    <div class="form-row">
+      <div class="form-group"><label>身高 (cm)</label><input id="set-height" type="number" value="180"></div>
+      <div class="form-group"><label>体重 (kg)</label><input id="set-weight" type="number" value="70"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>体脂率 (%)</label><input id="set-bodyfat" type="number" value="18"></div>
+      <div class="form-group"><label>年龄</label><input id="set-age" type="number" value="22"></div>
+    </div>
+    <div class="form-group">
+      <label>当前阶段</label>
+      <select id="set-period">
+        <option value="bulk">增肌期</option>
+        <option value="cut">减脂期</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>训练频率</label>
+      <select id="set-frequency">
+        <option value="3">每周3天</option>
+        <option value="4">每周4天</option>
+        <option value="5">每周5天</option>
+        <option value="6">每周6天</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-secondary" style="flex:1;" onclick="closeSettings()">取消</button>
+      <button class="btn btn-primary" style="flex:1;" onclick="saveSettings()">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============ DATA STORE ============
+function loadData() {
+  const d = localStorage.getItem('fitplan_data');
+  if (d) return JSON.parse(d);
+  return {
+    height: 180, weight: 70, bodyfat: 18, age: 22,
+    period: 'bulk', frequency: 4,
+    weightLog: {}, // { '2026-05-30': {w:70, period:'bulk'} }
+    dietLog: {},   // { '2026-05-30': [{name, cal, protein, carbs, fat}] }
+    trainingLog: {}, // { '2026-05-30': [{name, sets, reps, weight, done}] }
+    streak: 0, lastWorkoutDate: null,
+    totalWorkouts: 0, bestStreak: 0
+  };
+}
+function saveData(data) { localStorage.setItem('fitplan_data', JSON.stringify(data)); }
+let DATA = loadData();
+
+const today = () => new Date().toISOString().slice(0,10);
+const TD = today();
+
+// ============ CALCULATIONS ============
+function calcBMR() { return 10*DATA.weight + 6.25*DATA.height - 5*DATA.age + 5; }
+function calcTDEE() { return Math.round(calcBMR() * 1.55); }
+function calcTarget() {
+  const tdee = calcTDEE();
+  return DATA.period === 'bulk' ? tdee + 300 : tdee - 300;
+}
+function calcMacros() {
+  const target = calcTarget();
+  const protein = Math.round(DATA.weight * 2.0);
+  const fat = Math.round(target * 0.25 / 9);
+  const carbs = Math.round((target - protein*4 - fat*9) / 4);
+  return { target, protein, carbs, fat };
+}
+
+// ============ EXERCISE LIBRARY ============
+const EXERCISE_LIBRARY = {
+  '杠铃卧推': { part: '胸', defaultSets: 4, defaultReps: '8-10', defaultWeight: 60 },
+  '哑铃上斜卧推': { part: '胸', defaultSets: 4, defaultReps: '10-12', defaultWeight: 22 },
+  '哑铃飞鸟': { part: '胸', defaultSets: 3, defaultReps: '12-15', defaultWeight: 14 },
+  '双杠臂屈伸': { part: '胸', defaultSets: 3, defaultReps: '8-12', defaultWeight: 0 },
+  '绳索夹胸': { part: '胸', defaultSets: 3, defaultReps: '12-15', defaultWeight: 20 },
+  '引体向上': { part: '背', defaultSets: 4, defaultReps: '6-10', defaultWeight: 0 },
+  '杠铃划船': { part: '背', defaultSets: 4, defaultReps: '8-10', defaultWeight: 50 },
+  '哑铃单臂划船': { part: '背', defaultSets: 3, defaultReps: '10-12', defaultWeight: 24 },
+  '高位下拉': { part: '背', defaultSets: 4, defaultReps: '10-12', defaultWeight: 45 },
+  '坐姿划船': { part: '背', defaultSets: 3, defaultReps: '10-12', defaultWeight: 40 },
+  '杠铃深蹲': { part: '腿', defaultSets: 4, defaultReps: '8-10', defaultWeight: 80 },
+  '腿举': { part: '腿', defaultSets: 4, defaultReps: '10-12', defaultWeight: 120 },
+  '罗马尼亚硬拉': { part: '腿', defaultSets: 3, defaultReps: '10-12', defaultWeight: 70 },
+  '腿弯举': { part: '腿', defaultSets: 3, defaultReps: '12-15', defaultWeight: 35 },
+  '小腿提踵': { part: '腿', defaultSets: 4, defaultReps: '15-20', defaultWeight: 60 },
+  '杠铃推举': { part: '肩', defaultSets: 4, defaultReps: '8-10', defaultWeight: 35 },
+  '哑铃侧平举': { part: '肩', defaultSets: 4, defaultReps: '12-15', defaultWeight: 8 },
+  '哑铃前平举': { part: '肩', defaultSets: 3, defaultReps: '12-15', defaultWeight: 8 },
+  '面拉': { part: '肩', defaultSets: 3, defaultReps: '15-20', defaultWeight: 20 },
+  '杠铃弯举': { part: '手臂', defaultSets: 3, defaultReps: '10-12', defaultWeight: 25 },
+  '哑铃锤式弯举': { part: '手臂', defaultSets: 3, defaultReps: '10-12', defaultWeight: 12 },
+  '绳索下压': { part: '手臂', defaultSets: 3, defaultReps: '12-15', defaultWeight: 25 },
+  '窄距卧推': { part: '手臂', defaultSets: 3, defaultReps: '8-10', defaultWeight: 40 },
+};
+
+const TEMPLATES = {
+  '推胸+三头': ['杠铃卧推','哑铃上斜卧推','哑铃飞鸟','绳索夹胸','绳索下压','窄距卧推'],
+  '拉背+二头': ['引体向上','杠铃划船','高位下拉','坐姿划船','杠铃弯举','哑铃锤式弯举'],
+  '腿+肩': ['杠铃深蹲','腿举','罗马尼亚硬拉','腿弯举','杠铃推举','哑铃侧平举'],
+  '胸+背超级组': ['杠铃卧推','引体向上','哑铃上斜卧推','高位下拉','哑铃飞鸟','坐姿划船'],
+  '全身训练': ['杠铃深蹲','杠铃卧推','杠铃划船','杠铃推举','杠铃弯举','罗马尼亚硬拉'],
+};
+
+// ============ CAFETERIA FOODS ============
+const DEFAULT_FOODS = [
+  { name:'🍚 米饭 1碗', cal:200, protein:4, carbs:44, fat:1 },
+  { name:'🍚 米饭 2碗', cal:400, protein:8, carbs:88, fat:2 },
+  { name:'🍗 鸡腿', cal:180, protein:20, carbs:0, fat:11 },
+  { name:'🥩 红烧肉', cal:350, protein:15, carbs:5, fat:30 },
+  { name:'🐟 清蒸鱼', cal:120, protein:18, carbs:1, fat:5 },
+  { name:'🥬 炒青菜', cal:60, protein:3, carbs:5, fat:3 },
+  { name:'🥦 西兰花', cal:35, protein:3, carbs:6, fat:0 },
+  { name:'🍳 番茄炒蛋', cal:150, protein:8, carbs:10, fat:9 },
+  { name:'🥟 饺子×10', cal:350, protein:12, carbs:45, fat:12 },
+  { name:'🥚 水煮蛋×2', cal:140, protein:12, carbs:1, fat:10 },
+  { name:'🥛 豆浆 1杯', cal:80, protein:7, carbs:8, fat:2 },
+  { name:'🥟 包子×2', cal:300, protein:10, carbs:45, fat:8 },
+  { name:'🍜 牛肉面', cal:450, protein:20, carbs:55, fat:15 },
+  { name:'🍛 咖喱鸡饭', cal:550, protein:25, carbs:60, fat:22 },
+  { name:'🥗 凉拌黄瓜', cal:30, protein:1, carbs:4, fat:1 },
+  { name:'🍎 苹果 1个', cal:95, protein:0, carbs:25, fat:0 },
+  { name:'🍌 香蕉 1根', cal:105, protein:1, carbs:27, fat:0 },
+  { name:'🥜 花生 1把', cal:160, protein:7, carbs:5, fat:14 },
+  { name:'🍞 全麦面包 2片', cal:160, protein:8, carbs:28, fat:3 },
+  { name:'🐔 鸡胸肉', cal:130, protein:28, carbs:0, fat:3 },
+];
+
+// ============ INIT ============
+function init() {
+  renderTraining();
+  renderDiet();
+  renderProgress();
+  updateAllStats();
+  initTemplateSelect();
+  initStrengthSelect();
+}
+function initTemplateSelect() {
+  const sel = document.getElementById('template-select');
+  sel.innerHTML = '<option value="">选择训练模板...</option>';
+  for (const t in TEMPLATES) {
+    sel.innerHTML += `<option value="${t}">${t}</option>`;
+  }
+}
+function initStrengthSelect() {
+  const sel = document.getElementById('strength-ex-select');
+  sel.innerHTML = '<option value="">选择动作...</option>';
+  for (const ex in EXERCISE_LIBRARY) {
+    sel.innerHTML += `<option value="${ex}">${ex}</option>`;
+  }
+}
+
+// ============ TAB SWITCHING ============
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => {
+    t.classList.toggle('active', ['training','diet','progress'][i] === tab);
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  if (tab === 'progress') renderProgress();
+  if (tab === 'diet') renderDiet();
+}
+
+// ============ TRAINING ============
+function getTodayTraining() {
+  if (!DATA.trainingLog[TD]) {
+    const lastTemplate = localStorage.getItem('fitplan_template') || '推胸+三头';
+    const exercises = TEMPLATES[lastTemplate] || TEMPLATES['推胸+三头'];
+    DATA.trainingLog[TD] = exercises.map(name => {
+      const ex = EXERCISE_LIBRARY[name] || {};
+      return { name, sets: ex.defaultSets||4, reps: ex.defaultReps||'8-10', weight: ex.defaultWeight||0, done: false };
+    });
+    saveData(DATA);
+  }
+  return DATA.trainingLog[TD];
+}
+
+function renderTraining() {
+  const list = document.getElementById('exercise-list');
+  const exercises = getTodayTraining();
+  const period = DATA.period;
+  document.getElementById('period-badge').textContent = period === 'bulk' ? '增肌期' : '减脂期';
+  document.getElementById('period-badge').className = 'badge ' + (period === 'bulk' ? 'badge-red' : 'badge-green');
+  document.querySelectorAll('.period-btn').forEach(b => {
+    b.classList.toggle('active', b.textContent.includes(period==='bulk'?'增肌':'减脂'));
+  });
+  
+  if (exercises.length === 0) {
+    list.innerHTML = '<div class="empty"><p>选择一个训练模板开始</p></div>';
+  } else {
+    list.innerHTML = exercises.map((ex, i) => `
+      <div class="exercise-item ${ex.done ? 'done' : ''}">
+        <div class="ex-info">
+          <div class="ex-name">${ex.name}</div>
+          <div class="ex-detail">${ex.sets}组 × ${ex.reps}次 · ${ex.weight}kg</div>
+        </div>
+        <input class="ex-input" type="number" value="${ex.weight}" 
+          onchange="updateWeight(${i}, this.value)" placeholder="kg">
+        <div class="ex-check ${ex.done ? 'checked' : ''}" onclick="toggleExercise(${i})">
+          ${ex.done ? '✓' : ''}
+        </div>
+      </div>
+    `).join('');
+  }
+  document.getElementById('stat-today-ex').textContent = exercises.length;
+  document.getElementById('stat-today-cal').textContent = exercises.length * 65;
+  updateAllStats();
+}
+
+function toggleExercise(i) {
+  const ex = DATA.trainingLog[TD];
+  if (!ex) return;
+  ex[i].done = !ex[i].done;
+  saveData(DATA);
+  renderTraining();
+}
+
+function updateWeight(i, val) {
+  const ex = DATA.trainingLog[TD];
+  if (!ex) return;
+  ex[i].weight = parseInt(val) || 0;
+  saveData(DATA);
+}
+
+function loadTemplate() {
+  const sel = document.getElementById('template-select');
+  if (!sel.value) return;
+  localStorage.setItem('fitplan_template', sel.value);
+  const exercises = TEMPLATES[sel.value];
+  DATA.trainingLog[TD] = exercises.map(name => {
+    const ex = EXERCISE_LIBRARY[name] || {};
+    return { name, sets: ex.defaultSets||4, reps: ex.defaultReps||'8-10', weight: ex.defaultWeight||0, done: false };
+  });
+  saveData(DATA);
+  renderTraining();
+}
+
+function resetToday() {
+  delete DATA.trainingLog[TD];
+  saveData(DATA);
+  renderTraining();
+}
+
+function finishWorkout() {
+  const ex = DATA.trainingLog[TD];
+  if (!ex || ex.length === 0) return;
+  const allDone = ex.every(e => e.done);
+  if (!allDone) {
+    if (!confirm('还有动作没完成，确定结束训练吗？')) return;
+  }
+  // Update streak
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate()-1);
+  const yd = yesterday.toISOString().slice(0,10);
+  if (DATA.lastWorkoutDate === yd) DATA.streak++;
+  else if (DATA.lastWorkoutDate !== TD) DATA.streak = 1;
+  DATA.lastWorkoutDate = TD;
+  DATA.totalWorkouts = (DATA.totalWorkouts||0) + 1;
+  if (DATA.streak > DATA.bestStreak) DATA.bestStreak = DATA.streak;
+  saveData(DATA);
+  renderTraining();
+  updateAllStats();
+  alert('训练完成！🔥 连续打卡 ' + DATA.streak + ' 天');
+}
+
+function switchPeriod(p) {
+  DATA.period = p;
+  saveData(DATA);
+  renderTraining();
+  renderDiet();
+}
+
+// ============ DIET ============
+function getCafeteriaFoods() {
+  const saved = localStorage.getItem('fitplan_cafe_foods');
+  return saved ? JSON.parse(saved) : DEFAULT_FOODS;
+}
+
+function renderDiet() {
+  const macros = calcMacros();
+  const todayDiet = DATA.dietLog[TD] || [];
+  const totalCal = todayDiet.reduce((s,f) => s+f.cal, 0);
+  const totalProtein = todayDiet.reduce((s,f) => s+(f.protein||0), 0);
+  const totalCarbs = todayDiet.reduce((s,f) => s+(f.carbs||0), 0);
+  const totalFat = todayDiet.reduce((s,f) => s+(f.fat||0), 0);
+  
+  document.getElementById('diet-summary').textContent = `${totalCal} / ${macros.target} kcal`;
+  document.getElementById('diet-progress').style.width = Math.min(100, totalCal/macros.target*100) + '%';
+  document.getElementById('macro-protein').textContent = `${totalProtein}/${macros.protein}g`;
+  document.getElementById('macro-carbs').textContent = `${totalCarbs}/${macros.carbs}g`;
+  document.getElementById('macro-fat').textContent = `${totalFat}/${macros.fat}g`;
+  document.getElementById('bar-protein').style.width = Math.min(100, totalProtein/macros.protein*100) + '%';
+  document.getElementById('bar-carbs').style.width = Math.min(100, totalCarbs/macros.carbs*100) + '%';
+  document.getElementById('bar-fat').style.width = Math.min(100, totalFat/macros.fat*100) + '%';
+  
+  // Cafeteria chips
+  const foods = getCafeteriaFoods();
+  document.getElementById('cafeteria-chips').innerHTML = foods.map((f,i) => 
+    `<button class="food-chip" onclick="addCafeteriaFood(${i})">${f.name} <span style="font-size:10px;opacity:0.7;">${f.cal}kcal</span></button>`
+  ).join('');
+  
+  // Today's foods
+  const todayDiv = document.getElementById('today-foods');
+  if (todayDiet.length === 0) {
+    todayDiv.innerHTML = '<div class="empty"><p>还没记录饮食</p></div>';
+  } else {
+    todayDiv.innerHTML = todayDiet.map((f,i) => `
+      <div class="food-item">
+        <span class="food-name">${f.name}</span>
+        <span class="food-cal">${f.cal} kcal</span>
+        <button class="btn btn-sm btn-outline" onclick="removeFood(${i})" style="margin-left:8px;">✕</button>
+      </div>
+    `).join('');
+  }
+}
+
+function addCafeteriaFood(i) {
+  if (!DATA.dietLog[TD]) DATA.dietLog[TD] = [];
+  const foods = getCafeteriaFoods();
+  DATA.dietLog[TD].push({...foods[i]});
+  saveData(DATA);
+  renderDiet();
+}
+
+function addCustomFood() {
+  const name = document.getElementById('food-name').value.trim();
+  const cal = parseInt(document.getElementById('food-cal').value) || 0;
+  const protein = parseInt(document.getElementById('food-protein').value) || 0;
+  const carbs = parseInt(document.getElementById('food-carbs').value) || 0;
+  const fat = parseInt(document.getElementById('food-fat').value) || 0;
+  if (!name || cal <= 0) return;
+  if (!DATA.dietLog[TD]) DATA.dietLog[TD] = [];
+  DATA.dietLog[TD].push({name, cal, protein, carbs, fat});
+  saveData(DATA);
+  document.getElementById('food-name').value = '';
+  document.getElementById('food-cal').value = '';
+  document.getElementById('food-protein').value = '';
+  document.getElementById('food-carbs').value = '';
+  document.getElementById('food-fat').value = '';
+  renderDiet();
+}
+
+function removeFood(i) {
+  DATA.dietLog[TD].splice(i,1);
+  if (DATA.dietLog[TD].length === 0) delete DATA.dietLog[TD];
+  saveData(DATA);
+  renderDiet();
+}
+
+function clearTodayDiet() {
+  delete DATA.dietLog[TD];
+  saveData(DATA);
+  renderDiet();
+}
+
+// ============ PROGRESS ============
+function renderProgress() {
+  renderWeightChart();
+  updateAllStats();
+}
+
+function renderWeightChart() {
+  const chartDiv = document.getElementById('weight-chart');
+  const labelsDiv = document.getElementById('weight-labels');
+  const entries = Object.entries(DATA.weightLog).sort();
+  if (entries.length < 2) {
+    chartDiv.innerHTML = '<div class="empty" style="padding:20px;"><p>数据不足，记录体重后生成图表</p></div>';
+    labelsDiv.innerHTML = '';
+    return;
+  }
+  const last30 = entries.slice(-30);
+  const weights = last30.map(e => e[1].w);
+  const maxW = Math.max(...weights);
+  const minW = Math.min(...weights);
+  const range = maxW - minW || 1;
+  
+  chartDiv.innerHTML = last30.map(e => {
+    const h = ((e[1].w - minW) / range) * 80 + 20;
+    const color = e[1].period === 'cut' ? 'var(--accent2)' : 'var(--accent)';
+    const date = e[0].slice(5);
+    return `<div class="chart-bar" style="height:${h}%;background:${color};" title="${date}: ${e[1].w}kg"></div>`;
+  }).join('');
+  
+  labelsDiv.innerHTML = last30.map(e => {
+    const date = e[0].slice(5);
+    return `<div class="chart-label">${date}</div>`;
+  }).join('');
+  
+  // Stats
+  const firstW = last30[0][1].w;
+  const lastW = last30[last30.length-1][1].w;
+  document.getElementById('stat-weight-change').textContent = (lastW - firstW).toFixed(1);
+}
+
+function recordWeight() {
+  const w = parseFloat(document.getElementById('new-weight').value);
+  if (!w || w < 30 || w > 300) return;
+  if (!DATA.weightLog) DATA.weightLog = {};
+  DATA.weightLog[TD] = { w, period: DATA.period };
+  DATA.weight = w;
+  saveData(DATA);
+  document.getElementById('new-weight').value = '';
+  renderProgress();
+}
+
+function showStrengthLog() {
+  const exName = document.getElementById('strength-ex-select').value;
+  const logDiv = document.getElementById('strength-log');
+  if (!exName) {
+    logDiv.innerHTML = '<div class="empty"><p>选择一个动作查看力量变化</p></div>';
+    return;
+  }
+  
+  // Collect all training logs with this exercise
+  const entries = [];
+  for (const [date, exercises] of Object.entries(DATA.trainingLog)) {
+    for (const ex of exercises) {
+      if (ex.name === exName && ex.done && ex.weight) {
+        entries.push({ date, weight: ex.weight, reps: ex.reps, sets: ex.sets });
+      }
+    }
+  }
+  entries.sort((a,b) => b.date.localeCompare(a.date));
+  
+  if (entries.length === 0) {
+    logDiv.innerHTML = '<div class="empty"><p>还没有这个动作的记录</p></div>';
+    return;
+  }
+  
+  logDiv.innerHTML = entries.slice(0, 10).map((e, i) => {
+    const prev = entries[i+1];
+    let arrow = '';
+    if (prev) {
+      if (e.weight > prev.weight) arrow = ' <span style="color:var(--success)">↑</span>';
+      else if (e.weight < prev.weight) arrow = ' <span style="color:var(--danger)">↓</span>';
+      else arrow = ' →';
+    }
+    return `<div class="log-entry">
+      <span class="log-name">${e.date.slice(5)}</span>
+      <span class="log-current">${e.weight}kg × ${e.sets}组${arrow}</span>
+      <span class="log-prev">${prev ? prev.weight+'kg' : '--'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ============ SETTINGS ============
+function openSettings() {
+  document.getElementById('set-height').value = DATA.height;
+  document.getElementById('set-weight').value = DATA.weight;
+  document.getElementById('set-bodyfat').value = DATA.bodyfat;
+  document.getElementById('set-age').value = DATA.age;
+  document.getElementById('set-period').value = DATA.period;
+  document.getElementById('set-frequency').value = DATA.frequency;
+  document.getElementById('settings-modal').classList.add('show');
+}
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('show');
+}
+function saveSettings() {
+  DATA.height = parseInt(document.getElementById('set-height').value) || 180;
+  DATA.weight = parseInt(document.getElementById('set-weight').value) || 70;
+  DATA.bodyfat = parseInt(document.getElementById('set-bodyfat').value) || 18;
+  DATA.age = parseInt(document.getElementById('set-age').value) || 22;
+  DATA.period = document.getElementById('set-period').value;
+  DATA.frequency = parseInt(document.getElementById('set-frequency').value) || 4;
+  saveData(DATA);
+  closeSettings();
+  renderTraining();
+  renderDiet();
+  renderProgress();
+  updateAllStats();
+}
+
+// ============ STATS ============
+function updateAllStats() {
+  document.getElementById('stat-streak').textContent = DATA.streak || 0;
+  document.getElementById('stat-total-workouts').textContent = DATA.totalWorkouts || 0;
+  document.getElementById('stat-best-streak').textContent = DATA.bestStreak || 0;
+}
+
+// ============ STARTUP ============
+init();
+</script>
+</body>
+</html>
