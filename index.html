@@ -173,16 +173,6 @@ header h1 span { color: var(--accent); }
 .food-search-item:hover, .food-search-item:active { background: rgba(255,255,255,0.06); }
 .food-search-item .fs-name { flex:1; }
 .food-search-item .fs-macros { font-size: 11px; color: var(--text3); margin-left: 8px; }
-.food-search-online {
-  display: flex; align-items: center; gap: 6px; padding: 8px 12px;
-  cursor: pointer; font-size: 13px; color: var(--accent3); border-top: 1px solid rgba(255,255,255,0.04);
-}
-.food-search-online:hover { background: rgba(162,155,254,0.1); }
-.food-search-online .spinner {
-  display: none; width: 14px; height: 14px; border: 2px solid var(--border);
-  border-top-color: var(--accent3); border-radius: 50%; animation: spin 0.6s linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
@@ -1048,11 +1038,10 @@ function searchFood() {
     });
     html += '</div>';
   }
-  // Online search option
-  html += `<div class="food-search-online" onclick="searchOnline()">
-    <span class="spinner" id="search-spinner"></span>
-    🌐 联网搜索 "${query}"
-  </div>`;
+  // No local match hint
+  if (matches.length === 0) {
+    html += '<div style="font-size:11px;color:var(--text3);padding:4px 0;">库中未找到「'+query+'」，手动填写参数，或问 Hermes 帮你查</div>';
+  }
   resultsDiv.innerHTML = html;
 }
 
@@ -1064,35 +1053,6 @@ function selectFood(idx) {
   document.getElementById('food-carbs').value = f.carbs;
   document.getElementById('food-fat').value = f.fat;
   document.getElementById('food-search-results').innerHTML = '';
-}
-
-async function searchOnline() {
-  const query = document.getElementById('food-name').value.trim();
-  if (!query) return;
-  const spinner = document.getElementById('search-spinner');
-  spinner.style.display = 'inline-block';
-  try {
-    const resp = await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&json=1&page_size=3`);
-    const data = await resp.json();
-    spinner.style.display = 'none';
-    if (data.products && data.products.length > 0) {
-      const p = data.products[0];
-      const cal = Math.round((p.nutriments?.['energy-kcal_100g'] || p.nutriments?.energy_kcal_100g || 0) * (p.product_quantity || 100) / 100) || '';
-      const protein = Math.round((p.nutriments?.proteins_100g || 0) * (p.product_quantity || 100) / 100) || '';
-      const carbs = Math.round((p.nutriments?.carbohydrates_100g || 0) * (p.product_quantity || 100) / 100) || '';
-      const fat = Math.round((p.nutriments?.fat_100g || 0) * (p.product_quantity || 100) / 100) || '';
-      document.getElementById('food-cal').value = cal;
-      document.getElementById('food-protein').value = protein;
-      document.getElementById('food-carbs').value = carbs;
-      document.getElementById('food-fat').value = fat;
-      document.getElementById('food-search-results').innerHTML = `<div style="font-size:11px;color:var(--accent2);padding:4px 0;">✅ 已匹配: ${p.product_name || query} (${p.product_quantity || 'N/A'}g)</div>`;
-    } else {
-      document.getElementById('food-search-results').innerHTML = '<div style="font-size:11px;color:var(--text3);padding:4px 0;">未找到，请手动填写营养参数</div>';
-    }
-  } catch(e) {
-    spinner.style.display = 'none';
-    document.getElementById('food-search-results').innerHTML = '<div style="font-size:11px;color:var(--danger);padding:4px 0;">联网查询失败，请手动填写</div>';
-  }
 }
 function addCustomFood() {
   const name = document.getElementById('food-name').value.trim();
