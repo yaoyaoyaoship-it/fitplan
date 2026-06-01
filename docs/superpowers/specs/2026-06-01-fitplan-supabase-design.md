@@ -30,13 +30,20 @@ GitHub Pages (单文件 HTML /index.html)
 
 ### 3.1 表结构
 
-**profiles** — 用户档案（auth 自动触发创建）
+**profiles** — 用户档案 + 个人设置（auth trigger 自动创建）
 
-| 列 | 类型 | 说明 |
-|----|------|------|
-| id | uuid PK | = auth.uid() |
-| email | text | 邮箱 |
-| created_at | timestamptz | 注册时间 |
+| 列 | 类型 | 默认值 | 说明 |
+|----|------|--------|------|
+| id | uuid PK | = auth.uid() | |
+| email | text | | 邮箱 |
+| height | int | 180 | 身高 (cm) |
+| weight | numeric(5,1) | 70.0 | 体重 (kg) |
+| bodyfat | numeric(4,1) | 18.0 | 体脂率 (%) |
+| age | int | 22 | 年龄 |
+| period | text | 'bulk' | 当前阶段 (bulk/cut) |
+| frequency | int | 4 | 每周训练天数 |
+| created_at | timestamptz | now() | |
+| updated_at | timestamptz | now() | |
 
 **workouts** — 训练记录
 
@@ -74,21 +81,43 @@ GitHub Pages (单文件 HTML /index.html)
 | note | text | 备注（可选）|
 | created_at | timestamptz | |
 
+**templates** — 自定义训练模板
+
+| 列 | 类型 | 说明 |
+|----|------|------|
+| id | bigserial PK | |
+| user_id | uuid FK → profiles | 用户 |
+| name | text | 模板名（如"我的推胸日"）|
+| exercises | jsonb | [{name, sets, reps, weight}, ...] |
+| created_at | timestamptz | |
+
 ### 3.2 Row Level Security
 
 所有表启用 RLS，策略如下：
 
 ```sql
 -- profiles: 只能读写自己的
-CREATE POLICY "Users can read own profile" ON profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "profiles_select" ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "profiles_update" ON profiles FOR UPDATE USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 
--- workouts / meals / body_logs: 只能读写自己的
-CREATE POLICY "Users can CRUD own data" ON workouts FOR ALL USING (auth.uid() = user_id);
--- (同样的策略在 meals 和 body_logs 上)
+-- workouts: CRUD
+ALTER TABLE workouts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "workouts_select" ON workouts FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "workouts_insert" ON workouts FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "workouts_update" ON workouts FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "workouts_delete" ON workouts FOR DELETE USING (auth.uid() = user_id);
+
+-- meals / body_logs / templates: 同样模式
+-- (四张表结构相同，全部用 auth.uid() = user_id 做 USING + WITH CHECK)
 ```
 
-INSERT 时自动注入 `user_id = auth.uid()`（前端不改的话后端 trigger 兜底）。
+### 3.3 计数策略
+
+`totalWorkouts`、`thisMonthWorkouts` 等计数字段采用**实时 COUNT** 而非存储派生值：
+- 总训练次数 → `COUNT(*) FROM workouts WHERE user_id = auth.uid()`
+- 本月次数 → `COUNT(*) WHERE user_id = auth.uid() AND date >= month_start`
+- 前端在 `renderProgress()` 时实时查询，无需后端触发器维护
 
 ## 4. 登录注册流程
 
@@ -127,6 +156,13 @@ supabase.auth.getSession()
 - 不需要旧数据迁移（用户决定从零开始）
 - 首次登录后自动创建 profiles 记录（Supabase trigger）
 
+### 4.5 Session 持久化
+
+- `supabase.auth.onAuthStateChange()` 监听 session 变化，自动刷新
+- 页面加载时调用 `getSession()` 恢复登录态
+- Session 默认 1 小时过期，Supabase SDK 自动用 refresh token 续期
+- 登出时调用 `supabase.auth.signOut()` 并清空本地渲染状态
+
 ## 5. Supabase 配置清单
 
 ### 5.1 需要在 Supabase Dashboard 操作
@@ -162,9 +198,11 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 - 好友系统 / 排行榜 / 社交功能
 - 微信登录
 - 自定义后端服务器
-- 数据迁移工具（从零开始）
-- 训练模板云端共享
+- 数据迁移工具（从零开始，无旧数据）
+- 模板跨用户共享（每人自己的模板，互不可见）
 - 照片上传
+- 训练视频/动作演示
+- 网页端注册验证码（初期关闭 email confirmation 即可）
 
 ## 8. 自检
 
