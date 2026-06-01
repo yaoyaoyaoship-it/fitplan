@@ -191,7 +191,7 @@ header h1 span { color: var(--accent); }
 <!-- ===== TRAINING PAGE ===== -->
 <div class="page active" id="page-training">
   <div class="stats-row">
-    <div class="stat-box"><div class="value" id="stat-streak">0</div><div class="label">连续打卡</div></div>
+    <div class="stat-box"><div class="value" id="stat-streak">0</div><div class="label">本月健身次数</div></div>
     <div class="stat-box"><div class="value" id="stat-today-ex">0</div><div class="label">今日动作</div></div>
     <div class="stat-box"><div class="value" id="stat-today-cal">0</div><div class="label">预估消耗</div></div>
   </div>
@@ -342,7 +342,7 @@ function loadData() {
     height: 180, weight: 70, bodyfat: 18, age: 22,
     period: 'bulk', frequency: 4,
     weightLog: {}, dietLog: {}, trainingLog: {},
-    streak: 0, lastWorkoutDate: null,
+    thisMonthWorkouts: 0, currentMonth: null, lastWorkoutDate: null,
     totalWorkouts: 0, bestStreak: 0
   };
 }
@@ -791,18 +791,21 @@ function resetToday() {
 function finishWorkout() {
   const ex = DATA.trainingLog[today];
   if (!ex || ex.length === 0) return;
-  // Update streak
-  const yd = new Date(); yd.setDate(yd.getDate()-1);
-  const yds = yd.toISOString().slice(0,10);
-  if (DATA.lastWorkoutDate === yds) DATA.streak++;
-  else if (DATA.lastWorkoutDate !== today) DATA.streak = 1;
+  // Update this month workout count
+  const thisMonth = today.slice(0, 7);
+  if (DATA.currentMonth !== thisMonth) {
+    DATA.thisMonthWorkouts = 0;
+    DATA.currentMonth = thisMonth;
+  }
+  if (DATA.lastWorkoutDate !== today) {
+    DATA.thisMonthWorkouts = (DATA.thisMonthWorkouts || 0) + 1;
+  }
   DATA.lastWorkoutDate = today;
   DATA.totalWorkouts = (DATA.totalWorkouts||0) + 1;
-  if (DATA.streak > DATA.bestStreak) DATA.bestStreak = DATA.streak;
   saveData(DATA);
   renderTraining();
   const doneCount = ex.filter(e => e.done).length;
-  alert('训练完成！' + doneCount + '/' + ex.length + ' 动作 ✓  连续打卡 ' + DATA.streak + ' 天 🔥');
+  alert('训练完成！' + doneCount + '/' + ex.length + ' 动作 ✓  本月健身 ' + DATA.thisMonthWorkouts + ' 次 🔥');
 }
 
 function switchPeriod(p) {
@@ -1155,7 +1158,7 @@ function saveSettings() {
 
 // ============ STATS ============
 function updateAllStats() {
-  document.getElementById('stat-streak').textContent = DATA.streak || 0;
+  document.getElementById('stat-streak').textContent = DATA.thisMonthWorkouts || 0;
   document.getElementById('stat-total-workouts').textContent = DATA.totalWorkouts || 0;
   document.getElementById('stat-best-streak').textContent = DATA.bestStreak || 0;
 }
