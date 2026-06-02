@@ -1,7 +1,7 @@
 // ============ DATA STORE ============
 // ============ SUPABASE INIT ============
 const SUPABASE_URL = 'https://dqmifbcvmjsosutlhlhr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbG...k3S0';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxbWlmYmN2bWpzb3N1dGxobGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjA4MjEsImV4cCI6MjA5NTg5NjgyMX0.s4vv2shHbc0ktH2ldowC3TusaZSBG_Z_0RznMOtk3S0';
 let supabase = null;
 let currentUser = null;
 
