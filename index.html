@@ -480,7 +480,7 @@ async function getAllTemplates() {
       return { name: e, sets: lib.defaultSets||4, reps: lib.defaultReps||'8-10', weight: lib.defaultWeight||0 };
     }), preset: true });
   }
-  for (const t of getUserTemplates()) {
+  for (const t of await getUserTemplates()) {
     list.push({ ...t, preset: false });
   }
   return list;
@@ -689,7 +689,7 @@ function showMainApp() {
 
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t,i) => {
+  document.querySelectorAll('.tabs .tab').forEach((t,i) => {
     t.classList.toggle('active', ['training','diet','progress'][i] === tab);
   });
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -860,8 +860,8 @@ function switchPeriod(p) {
 }
 
 // ============ TEMPLATE MANAGER ============
-function openTemplateManager() {
-  renderTemplateList();
+async function openTemplateManager() {
+  await renderTemplateList();
   document.getElementById('template-modal').classList.add('show');
   document.getElementById('template-builder-area').style.display = 'none';
 }
@@ -871,9 +871,9 @@ function closeTemplateManager() {
   renderTraining();
 }
 
-function renderTemplateList() {
+async function renderTemplateList() {
   const div = document.getElementById('template-list');
-  const userTemplates = getUserTemplates();
+  const userTemplates = await getUserTemplates();
   if (userTemplates.length === 0) {
     div.innerHTML = '<div class="empty" style="padding:20px;"><p>还没有自定义模板</p></div>';
   } else {
@@ -892,7 +892,7 @@ function renderTemplateList() {
   }
 }
 
-function showTemplateBuilder(editIndex) {
+async function showTemplateBuilder(editIndex) {
   const area = document.getElementById('template-builder-area');
   area.style.display = 'block';
   const parts = ['胸','背','腿','肩','手臂','核心'];
@@ -900,7 +900,7 @@ function showTemplateBuilder(editIndex) {
   let tplName = '';
   
   if (editIndex !== undefined && editIndex >= 0) {
-    const templates = getUserTemplates();
+    const templates = await getUserTemplates();
     const t = templates[editIndex];
     tplName = t.name;
     selectedExs = t.exercises.map(e => ({...e}));
@@ -991,7 +991,7 @@ async function saveTemplate(editIndex) {
   if (!name) { alert('请输入模板名称'); return; }
   if (!area._selectedExs || area._selectedExs.length === 0) { alert('请至少选一个动作'); return; }
   
-  const templates = getUserTemplates();
+  const templates = await getUserTemplates();
   const tpl = { name, exercises: area._selectedExs.map(e => ({...e})) };
   
   if (editIndex >= 0 && editIndex < templates.length) {
@@ -1001,7 +1001,7 @@ async function saveTemplate(editIndex) {
   }
   await saveUserTemplates(templates);
   closeTemplateManager();
-  renderTemplateList();
+  await renderTemplateList();
   refreshTemplateSelect();
 }
 
@@ -1011,10 +1011,10 @@ function editTemplate(i) {
 
 async function deleteTemplate(i) {
   if (!confirm('确定删除这个模板？')) return;
-  const templates = getUserTemplates();
+  const templates = await getUserTemplates();
   templates.splice(i, 1);
   await saveUserTemplates(templates);
-  renderTemplateList();
+  await renderTemplateList();
   refreshTemplateSelect();
 }
 
