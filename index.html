@@ -726,7 +726,7 @@ async function generateSuggestions() {
   const daysSince=(dateStr)=>{const d=new Date(dateStr);return Math.floor((new Date()-d)/86400000);};
   for(const part of["胸","背","腿","肩","手臂","核心"]){
     const last=partLastDate[part];
-    if(!last)suggestions.push({type:"balance",icon:"\\u26A0\\uFE0F",text:"<strong>"+part+"部</strong>还没有训练记录,记得安排一下!"});
+    if(!last)suggestions.push({type:"balance",icon:"\⚠\️",text:"<strong>"+part+"部</strong>还没有训练记录,记得安排一下!"});
     else if(daysSince(last)>5)suggestions.push({type:"balance",icon:"\⏰",text:"<strong>"+part+"部</strong>已经 "+daysSince(last)+" 天没练了,下次优先安排!"});
   }
   return suggestions.slice(0,5);
