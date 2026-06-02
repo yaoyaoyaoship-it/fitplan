@@ -370,9 +370,19 @@ header h1 span { color: var(--accent); }
 // ============ DATA STORE ============
 // ============ SUPABASE INIT ============
 const SUPABASE_URL = 'https://dqmifbcvmjsosutlhlhr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGci...k3S0';
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_ANON_KEY = 'eyJhbG...k3S0';
+let supabase = null;
 let currentUser = null;
+
+// Wait for CDN to load Supabase
+function initSupabase() {
+  if (typeof window.supabase === 'undefined') {
+    document.getElementById('auth-page').innerHTML = '<div class="card" style="text-align:center;padding:40px;"><p>正在加载...</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">如果长时间未响应，请检查网络连接后刷新页面</p></div>';
+    return false;
+  }
+  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  return true;
+}
 
 let DATA = {height:180, weight:70, bodyfat:18, age:22, period:"bulk", frequency:4, weightLog:{}, dietLog:{}, trainingLog:{}, thisMonthWorkouts:0, totalWorkouts:0, currentMonth:"", lastWorkoutDate:"", bestStreak:0};
 const TD = () => new Date().toISOString().slice(0,10);
@@ -1173,6 +1183,7 @@ async function updateAllStats() {
 
 // ============ STARTUP ============
 async function startup() {
+  if (!initSupabase()) return;
   const { data } = await supabase.auth.getSession();
   if (data.session) {
     currentUser = data.session.user;
