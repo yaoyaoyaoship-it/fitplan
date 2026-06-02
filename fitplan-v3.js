@@ -837,20 +837,19 @@ async function startup() {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
   }
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && session) {
+      currentUser = session.user;
+      showMainApp();
+    } else if (event === 'SIGNED_OUT') {
+      currentUser = null;
+      document.getElementById('auth-page').style.display = 'flex';
+      document.querySelector('header').style.display = 'none';
+      document.querySelector('.tabs').style.display = 'none';
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+    }
+  });
 }
-
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_IN' && session) {
-    currentUser = session.user;
-    showMainApp();
-  } else if (event === 'SIGNED_OUT') {
-    currentUser = null;
-    document.getElementById('auth-page').style.display = 'flex';
-    document.querySelector('header').style.display = 'none';
-    document.querySelector('.tabs').style.display = 'none';
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-  }
-});
 
 startup();
