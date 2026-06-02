@@ -1,3 +1,4 @@
+
 // ============ DATA STORE ============
 // ============ SUPABASE INIT ============
 const SUPABASE_URL = 'https://dqmifbcvmjsosutlhlhr.supabase.co';
