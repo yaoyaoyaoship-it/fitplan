@@ -361,11 +361,20 @@ async function generateSuggestions() {
 }
 
 async function renderSuggestions() {
-  const panel=document.getElementById("suggestion-panel");
-  const suggestions=await generateSuggestions();
-  if(suggestions.length===0){panel.style.display="none";return;}
-  panel.style.display="block";
-  panel.innerHTML="<div class=sug-title>\\u{1F9E0} 智能建议</div>"+suggestions.map(s=>"<div class=suggestion-item><span class=sug-icon>"+s.icon+"</span><div><span>"+s.text+"</span>"+(s.action?"<button class=\"btn btn-xs btn-primary\" style=\"margin-top:4px;\" onclick=\"applySuggestion(\\""+s.action+"\\","+s.newWeight+")\">采纳建议</button>":"")+"</div></div>").join("");
+  var panel = document.getElementById("suggestion-panel");
+  var suggestions = await generateSuggestions();
+  if (suggestions.length === 0) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+  var html = '<div class=sug-title>🧠 智能建议</div>';
+  for (var i = 0; i < suggestions.length; i++) {
+    var s = suggestions[i];
+    html += '<div class=suggestion-item><span class=sug-icon>' + s.icon + '</span><div><span>' + s.text + '</span>';
+    if (s.action) {
+      html += '<button class="btn btn-xs btn-primary" style="margin-top:4px" onclick="applySuggestion(\'' + s.action + '\',' + s.newWeight + ')">采纳建议</button>';
+    }
+    html += '</div></div>';
+  }
+  panel.innerHTML = html;
 }
 
 async function applySuggestion(exName,newWeight) {
@@ -461,7 +470,7 @@ async function resetToday() {
   renderTraining();
 }
 
-function finishWorkout() {
+async function finishWorkout() {
   const exercises=await getTodayTraining();
   if(!exercises||exercises.length===0)return;
   const doneCount=exercises.filter(e=>e.done).length;
@@ -746,18 +755,20 @@ async function clearTodayDiet() {
 function renderProgress() { renderWeightChart(); updateAllStats(); }
 
 async function renderWeightChart() {
-  const chartDiv=document.getElementById("weight-chart");
-  const labelsDiv=document.getElementById("weight-labels");
-  const{data}=await supabase.from("body_logs").select("date,weight").eq("user_id",currentUser.id).gte("date",new Date(Date.now()-30*86400000).toISOString().slice(0,10)).order("date",{ascending:true});
-  if(!data||data.length<2){chartDiv.innerHTML="<div class=empty style=padding:20px;><p>数据不足，记录体重后生成图表</p></div>";labelsDiv.innerHTML="";return;}
-  const weights=data.map(e=>e.weight);
-  const maxW=Math.max(...weights),minW=Math.min(...weights),range=maxW-minW||1;
-  chartDiv.innerHTML=data.map(e=>"<div class=chart-bar style=height:"+(((e.weight-minW)/range)*80+20)+"%;background:var(--accent2);" title=""+e.date+": "+e.weight+"kg"></div>").join("");
-  labelsDiv.innerHTML=data.map(e=>"<div class=chart-label>"+e.date.slice(5)+"</div>").join("");
+  var chartDiv=document.getElementById("weight-chart");
+  var labelsDiv=document.getElementById("weight-labels");
+  var d=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+  var{data}=await supabase.from("body_logs").select("date,weight").eq("user_id",currentUser.id).gte("date",d).order("date",{ascending:true});
+  if(!data||data.length<2){chartDiv.innerHTML="<div class=empty style=padding:20px><p>数据不足，记录体重后生成图表</p></div>";labelsDiv.innerHTML="";return;}
+  var weights=data.map(function(e){return e.weight;});
+  var maxW=Math.max.apply(null,weights),minW=Math.min.apply(null,weights),range=maxW-minW||1;
+  var bars="",labels="";
+  for(var i=0;i<data.length;i++){bars+="<div class=chart-bar style=height:"+(((data[i].weight-minW)/range)*80+20)+"%;background:var(--accent2) title="+data[i].date+":"+data[i].weight+"kg></div>";labels+="<div class=chart-label>"+data[i].date.slice(5)+"</div>";}
+  chartDiv.innerHTML=bars;
+  labelsDiv.innerHTML=labels;
   document.getElementById("stat-weight-change").textContent=(data[data.length-1].weight-data[0].weight).toFixed(1);
 }
-
-function recordWeight() {
+async function recordWeight() {
   const w=parseFloat(document.getElementById("new-weight").value);
   if(!w||w<30||w>300)return;
   await supabase.from("body_logs").upsert({user_id:currentUser.id,date:today,weight:w},{onConflict:"user_id,date"});
