@@ -713,7 +713,7 @@ async function generateSuggestions() {
     if(!last.done||last.weight<=0)continue;
     if(last.weight<=prev.weight&&prev.done){
       const lib=EXERCISE_LIBRARY[name];
-      if(lib&&lib.defaultWeight){const inc=lib.defaultWeight<15?1:2.5;suggestions.push({type:"increase",icon:"\\u{1F4C8}",text:"<strong>"+name+"</strong>上次 "+last.weight+"kg 全部完成 \\u2192 试试 <strong>"+(last.weight+inc)+"kg</strong>?",action:name,newWeight:last.weight+inc});}
+      if(lib&&lib.defaultWeight){const inc=lib.defaultWeight<15?1:2.5;suggestions.push({type:"increase",icon:"\📈",text:"<strong>"+name+"</strong>上次 "+last.weight+"kg 全部完成 \→ 试试 <strong>"+(last.weight+inc)+"kg</strong>?",action:name,newWeight:last.weight+inc});}
     }
   }
   const partLastDate={};
@@ -727,7 +727,7 @@ async function generateSuggestions() {
   for(const part of["胸","背","腿","肩","手臂","核心"]){
     const last=partLastDate[part];
     if(!last)suggestions.push({type:"balance",icon:"\\u26A0\\uFE0F",text:"<strong>"+part+"部</strong>还没有训练记录,记得安排一下!"});
-    else if(daysSince(last)>5)suggestions.push({type:"balance",icon:"\\u23F0",text:"<strong>"+part+"部</strong>已经 "+daysSince(last)+" 天没练了,下次优先安排!"});
+    else if(daysSince(last)>5)suggestions.push({type:"balance",icon:"\⏰",text:"<strong>"+part+"部</strong>已经 "+daysSince(last)+" 天没练了,下次优先安排!"});
   }
   return suggestions.slice(0,5);
 }
@@ -849,7 +849,7 @@ async function finishWorkout() {
   renderTraining();
   const monthStart=today.slice(0,7)+"-01";
   const{count}=await sb.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",monthStart);
-  alert("训练完成！"+doneCount+"/"+exercises.length+" 动作 \u2713  本月健身 "+(count||0)+" 次 \u{1F525}");
+  alert("训练完成！"+doneCount+"/"+exercises.length+" 动作 ✓  本月健身 "+(count||0)+" 次 🔥");
 }
 
 function switchPeriod(p) {
@@ -1038,7 +1038,7 @@ async function renderDiet() {
   document.getElementById("cafeteria-chips").innerHTML=foods.map((f,i)=>"<button class=food-chip onclick=addCafeteriaFood("+i+")>"+f.name+" <span style=font-size:10px;opacity:0.7;>"+f.cal+"kcal</span></button>").join("");
   const todayDiv=document.getElementById("today-foods");
   if(todayDiet.length===0){todayDiv.innerHTML="<div class=empty><p>还没记录饮食</p></div>";}
-  else{todayDiv.innerHTML=todayDiet.map((f,i)=>"<div class=food-item><span class=food-name>"+f.name+"</span><span class=food-cal>"+f.cal+" kcal</span><button class=\"btn btn-sm btn-outline\" onclick=removeFood("+i+") style=margin-left:8px;>\\u2715</button></div>").join("");}
+  else{todayDiv.innerHTML=todayDiet.map((f,i)=>"<div class=food-item><span class=food-name>"+f.name+"</span><span class=food-cal>"+f.cal+" kcal</span><button class=\"btn btn-sm btn-outline\" onclick=removeFood("+i+") style=margin-left:8px;>\✕</button></div>").join("");}
 }
 
 async function addCafeteriaFood(i) {
@@ -1158,8 +1158,8 @@ async function showStrengthLog() {
   if(entries.length===0){logDiv.innerHTML="<div class=empty><p>还没有这个动作的记录</p></div>";return;}
   logDiv.innerHTML=entries.slice(0,10).map((e,i)=>{
     const prev=entries[i+1];let arrow="";
-    if(prev){if(e.weight>prev.weight)arrow=" <span style=color:var(--success)>\\u2191</span>";else if(e.weight<prev.weight)arrow=" <span style=color:var(--danger)>\\u2193</span>";else arrow=" \\u2192";}
-    return "<div class=log-entry><span class=log-name>"+e.date.slice(5)+"</span><span class=log-current>"+e.weight+"kg \\u00d7 "+e.sets+"组"+arrow+"</span><span class=log-prev>"+(prev?prev.weight+"kg":"--")+"</span></div>";
+    if(prev){if(e.weight>prev.weight)arrow=" <span style=color:var(--success)>\↑</span>";else if(e.weight<prev.weight)arrow=" <span style=color:var(--danger)>\↓</span>";else arrow=" \→";}
+    return "<div class=log-entry><span class=log-name>"+e.date.slice(5)+"</span><span class=log-current>"+e.weight+"kg \× "+e.sets+"组"+arrow+"</span><span class=log-prev>"+(prev?prev.weight+"kg":"--")+"</span></div>";
   }).join("");
 }
 
