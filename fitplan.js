@@ -318,7 +318,9 @@ function showMainApp() {
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
   document.querySelectorAll('.tab').forEach((t,i) => {
-    t.classList.toggle('active', ['training','diet','progress'][i] === tab);
+    const active = ['training','diet','progress'][i] === tab;
+    t.classList.toggle('active', active);
+    t.setAttribute('aria-selected', active);
   });
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
@@ -837,19 +839,20 @@ async function startup() {
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
   }
-  supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'SIGNED_IN' && session) {
-      currentUser = session.user;
-      showMainApp();
-    } else if (event === 'SIGNED_OUT') {
-      currentUser = null;
-      document.getElementById('auth-page').style.display = 'flex';
-      document.querySelector('header').style.display = 'none';
-      document.querySelector('.tabs').style.display = 'none';
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
-    }
-  });
 }
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_IN' && session) {
+    currentUser = session.user;
+    showMainApp();
+  } else if (event === 'SIGNED_OUT') {
+    currentUser = null;
+    document.getElementById('auth-page').style.display = 'flex';
+    document.querySelector('header').style.display = 'none';
+    document.querySelector('.tabs').style.display = 'none';
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
+  }
+});
 
 startup();
