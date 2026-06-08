@@ -2,7 +2,7 @@
 // ============ SUPABASE INIT ============
 const SUPABASE_URL = 'https://dqmifbcvmjsosutlhlhr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRxbWlmYmN2bWpzb3N1dGxobGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMjA4MjEsImV4cCI6MjA5NTg5NjgyMX0.s4vv2shHbc0ktH2ldowC3TusaZSBG_Z_0RznMOtk3S0';
-let supabase = null;
+let supabaseClient = null;
 let currentUser = null;
 
 // Wait for CDN to load Supabase
@@ -11,7 +11,7 @@ function initSupabase() {
     document.getElementById('auth-page').innerHTML = '<div class="card" style="text-align:center;padding:40px;"><p>正在加载...</p><p style="font-size:12px;color:var(--text3);margin-top:8px;">如果长时间未响应，请检查网络连接后刷新页面</p></div>';
     return false;
   }
-  supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   return true;
 }
 
@@ -89,15 +89,15 @@ const PRESET_TEMPLATES = {
 
 async function getUserTemplates() {
   if (!currentUser) return [];
-  const { data } = await supabase.from('templates').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true });
+  const { data } = await supabaseClient.from('templates').select('*').eq('user_id', currentUser.id).order('created_at', { ascending: true });
   return (data || []).map(t => ({ name: t.name, exercises: t.exercises }));
 }
 
 async function saveUserTemplates(templates) {
   if (!currentUser) return;
-  await supabase.from('templates').delete().eq('user_id', currentUser.id);
+  await supabaseClient.from('templates').delete().eq('user_id', currentUser.id);
   const inserts = templates.map(t => ({ user_id: currentUser.id, name: t.name, exercises: t.exercises }));
-  if (inserts.length > 0) await supabase.from('templates').insert(inserts);
+  if (inserts.length > 0) await supabaseClient.from('templates').insert(inserts);
 }
 
 async function getAllTemplates() {
@@ -108,7 +108,7 @@ async function getAllTemplates() {
       return { name: e, sets: lib.defaultSets||4, reps: lib.defaultReps||'8-10', weight: lib.defaultWeight||0 };
     }), preset: true });
   }
-  for (const t of getUserTemplates()) {
+  for (const t of await getUserTemplates()) {
     list.push({ ...t, preset: false });
   }
   return list;
@@ -220,7 +220,7 @@ const FOOD_DB = [
 // ============ INIT ============
 async function init() {
   if(currentUser){
-    const{data:profile}=await supabase.from("profiles").select("*").eq("id",currentUser.id).single();
+    const{data:profile}=await supabaseClient.from("profiles").select("*").eq("id",currentUser.id).single();
     if(profile){DATA.height=profile.height;DATA.weight=profile.weight;DATA.bodyfat=profile.bodyfat;DATA.age=profile.age;DATA.period=profile.period;DATA.frequency=profile.frequency;}
   }
 }
@@ -258,7 +258,7 @@ async function handleLogin(e) {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
   const errEl = document.getElementById('login-error');
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
   if (error) {
     errEl.textContent = error.message.includes('Invalid') ? '邮箱或密码错误' : error.message;
     errEl.style.display = 'block';
@@ -275,7 +275,7 @@ async function handleRegister(e) {
   const password2 = document.getElementById('reg-password2').value;
   const errEl = document.getElementById('reg-error');
   if (password !== password2) { errEl.textContent = '两次密码不一致'; errEl.style.display = 'block'; return; }
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
   if (error) { errEl.textContent = error.message; errEl.style.display = 'block'; return; }
   if (data.session) { currentUser = data.user; showMainApp(); }
   else { document.getElementById('login-email').value = email; switchAuthTab('login'); document.getElementById('login-error').textContent = '注册成功！请登录'; document.getElementById('login-error').style.display = 'block'; }
@@ -285,7 +285,7 @@ async function handleForgotPassword(e) {
   e.preventDefault();
   const email = document.getElementById('login-email').value.trim();
   if (!email) { document.getElementById('login-error').textContent = '请先输入邮箱'; document.getElementById('login-error').style.display = 'block'; return; }
-  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
   document.getElementById('login-error').textContent = error ? '发送失败：' + error.message : '已发送重置邮件，请查收';
   document.getElementById('login-error').style.display = 'block';
 }
@@ -293,11 +293,11 @@ async function handleForgotPassword(e) {
 function toggleUserMenu() { const m = document.getElementById('user-dropdown'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
 
 async function handleLogout() {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   currentUser = null;
   document.getElementById('auth-page').style.display = 'flex';
   document.querySelector('header').style.display = 'none';
-  document.querySelector('.tabs').style.display = 'none';
+  document.getElementById('main-tabs').style.display = 'none';
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('user-dropdown').style.display = 'none';
 }
@@ -305,8 +305,9 @@ async function handleLogout() {
 function showMainApp() {
   document.getElementById('auth-page').style.display = 'none';
   document.querySelector('header').style.display = 'flex';
-  document.querySelector('.tabs').style.display = 'flex';
-  document.getElementById('page-training').classList.add('active');
+  document.getElementById('main-tabs').style.display = 'flex';
+  document.querySelectorAll('.page').forEach(p => p.style.removeProperty('display'));
+  switchTab('training');
   const email = currentUser.email || '';
   const initial = email.charAt(0).toUpperCase();
   const av = document.getElementById('user-avatar');
@@ -317,7 +318,7 @@ function showMainApp() {
 
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
-  document.querySelectorAll('.tab').forEach((t,i) => {
+  document.querySelectorAll('#main-tabs .tab').forEach((t,i) => {
     const active = ['training','diet','progress'][i] === tab;
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', active);
@@ -331,7 +332,7 @@ function switchTab(tab) {
 // ============ SMART SUGGESTIONS ============
 async function generateSuggestions() {
   const suggestions=[];
-  const{data:logs}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).order("date",{ascending:false}).limit(30);
+  const{data:logs}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).order("date",{ascending:false}).limit(30);
   if(!logs||logs.length<2)return suggestions;
   const allEx=[];
   for(const w of logs){for(const ex of(w.exercises||[])){allEx.push({date:w.date,...ex});}}
@@ -356,8 +357,8 @@ async function generateSuggestions() {
   const daysSince=(dateStr)=>{const d=new Date(dateStr);return Math.floor((new Date()-d)/86400000);};
   for(const part of["胸","背","腿","肩","手臂","核心"]){
     const last=partLastDate[part];
-    if(!last)suggestions.push({type:"balance",icon:"\\u26A0\\uFE0F",text:"<strong>"+part+"部</strong>还没有训练记录,记得安排一下!"});
-    else if(daysSince(last)>5)suggestions.push({type:"balance",icon:"\\u23F0",text:"<strong>"+part+"部</strong>已经 "+daysSince(last)+" 天没练了,下次优先安排!"});
+    if(!last)suggestions.push({type:"balance",icon:"\u26A0\uFE0F",text:"<strong>"+part+"部</strong>还没有训练记录,记得安排一下!"});
+    else if(daysSince(last)>5)suggestions.push({type:"balance",icon:"\u23F0",text:"<strong>"+part+"部</strong>已经 "+daysSince(last)+" 天没练了,下次优先安排!"});
   }
   return suggestions.slice(0,5);
 }
@@ -381,22 +382,22 @@ async function renderSuggestions() {
 
 async function applySuggestion(exName,newWeight) {
   if(!currentUser)return;
-  const{data:workout}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
   if(!workout)return;
   const exercises=workout.exercises;
   for(const ex of exercises){if(ex.name===exName){ex.weight=newWeight;break;}}
-  await supabase.from("workouts").update({exercises}).eq("id",workout.id);
+  await supabaseClient.from("workouts").update({exercises}).eq("id",workout.id);
   renderTraining();
 }
 
 // ============ TRAINING ============
 async function getTodayTraining() {
   if(!currentUser)return[];
-  const{data}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).limit(1);
+  const{data}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).limit(1);
   if(!data||data.length===0){
     const all=await getAllTemplates();const t=all[0];if(!t)return[];
     const nw={user_id:currentUser.id,date:today,template_name:t.name,exercises:t.exercises.map(e=>({...e,done:false}))};
-    const{data:inserted}=await supabase.from("workouts").insert(nw).select().single();
+    const{data:inserted}=await supabaseClient.from("workouts").insert(nw).select().single();
     return inserted?inserted.exercises:[];
   }
   return data[0].exercises;
@@ -439,19 +440,19 @@ async function renderTraining() {
 
 async function toggleExercise(i) {
   if(!currentUser)return;
-  const{data:workout}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
   if(!workout)return;
   const exercises=workout.exercises;exercises[i].done=!exercises[i].done;
-  await supabase.from("workouts").update({exercises}).eq("id",workout.id);
+  await supabaseClient.from("workouts").update({exercises}).eq("id",workout.id);
   renderTraining();
 }
 
 async function updateExParam(i,field,val) {
   if(!currentUser)return;
-  const{data:workout}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
   if(!workout)return;
   const exercises=workout.exercises;exercises[i][field]=parseInt(val)||exercises[i][field];
-  await supabase.from("workouts").update({exercises}).eq("id",workout.id);
+  await supabaseClient.from("workouts").update({exercises}).eq("id",workout.id);
 }
 
 async function loadTemplate() {
@@ -461,14 +462,14 @@ localStorage.setItem('fitplan_template', sel.value);
 const all = await getAllTemplates();
 const t = all.find(t => t.name === sel.value);
 if (t) {
-  await supabase.from('workouts').delete().eq('user_id', currentUser.id).eq('date', today);
-  await supabase.from('workouts').insert({ user_id: currentUser.id, date: today, template_name: t.name, exercises: t.exercises.map(e => ({...e, done: false})) });
+  await supabaseClient.from('workouts').delete().eq('user_id', currentUser.id).eq('date', today);
+  await supabaseClient.from('workouts').insert({ user_id: currentUser.id, date: today, template_name: t.name, exercises: t.exercises.map(e => ({...e, done: false})) });
   renderTraining();
   }
 }
 
 async function resetToday() {
-  await supabase.from("workouts").delete().eq("user_id",currentUser.id).eq("date",today);
+  await supabaseClient.from("workouts").delete().eq("user_id",currentUser.id).eq("date",today);
   renderTraining();
 }
 
@@ -478,7 +479,7 @@ async function finishWorkout() {
   const doneCount=exercises.filter(e=>e.done).length;
   renderTraining();
   const monthStart=today.slice(0,7)+"-01";
-  const{count}=await supabase.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",monthStart);
+  const{count}=await supabaseClient.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",monthStart);
   alert("训练完成！"+doneCount+"/"+exercises.length+" 动作 \u2713  本月健身 "+(count||0)+" 次 \u{1F525}");
 }
 
@@ -653,7 +654,7 @@ function getCafeteriaFoods() { return DEFAULT_FOODS; }
 
 async function renderDiet() {
   const macros=calcMacros();
-  const{data:meals}=await supabase.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
+  const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
   const todayDiet=[];let totalCal=0,totalProtein=0,totalCarbs=0,totalFat=0;
   if(meals){for(const m of meals){for(const f of(m.foods||[])){todayDiet.push(f);totalCal+=f.cal||0;totalProtein+=f.protein||0;totalCarbs+=f.carbs||0;totalFat+=f.fat||0;}}}
   document.getElementById("diet-summary").textContent=totalCal+" / "+macros.target+" kcal";
@@ -674,9 +675,9 @@ async function renderDiet() {
 async function addCafeteriaFood(i) {
   if(!currentUser)return;
   const food=getCafeteriaFoods()[i];
-  const{data:meal}=await supabase.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
-  if(meal){const foods=meal.foods||[];foods.push(food);await supabase.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-  else{await supabase.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:food.cal||0});}
+  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
+  if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
+  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:food.cal||0});}
   renderDiet();
 }
 
@@ -723,9 +724,9 @@ async function addCustomFood() {
   const fat=parseInt(document.getElementById("food-fat").value)||0;
   if(!name||cal<=0)return;
   const food={name,cal,protein,carbs,fat};
-  const{data:meal}=await supabase.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
-  if(meal){const foods=meal.foods||[];foods.push(food);await supabase.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-  else{await supabase.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:cal});}
+  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
+  if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
+  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:cal});}
   ["food-name","food-cal","food-protein","food-carbs","food-fat"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("food-search-results").innerHTML="";
   renderDiet();
@@ -733,15 +734,15 @@ async function addCustomFood() {
 
 async function removeFood(i) {
   if(!currentUser)return;
-  const{data:meals}=await supabase.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
+  const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
   if(!meals||meals.length===0)return;
   let ti=0;
   for(const meal of meals){
     const foods=meal.foods||[];
     if(i<ti+foods.length){
       foods.splice(i-ti,1);
-      if(foods.length===0){await supabase.from("meals").delete().eq("id",meal.id);}
-      else{await supabase.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
+      if(foods.length===0){await supabaseClient.from("meals").delete().eq("id",meal.id);}
+      else{await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
       break;
     }
     ti+=foods.length;
@@ -749,7 +750,7 @@ async function removeFood(i) {
   renderDiet();
 }
 async function clearTodayDiet() {
-  await supabase.from("meals").delete().eq("user_id",currentUser.id).eq("date",today);
+  await supabaseClient.from("meals").delete().eq("user_id",currentUser.id).eq("date",today);
   renderDiet();
 }
 
@@ -760,7 +761,7 @@ async function renderWeightChart() {
   var chartDiv=document.getElementById("weight-chart");
   var labelsDiv=document.getElementById("weight-labels");
   var d=new Date(Date.now()-30*86400000).toISOString().slice(0,10);
-  var{data}=await supabase.from("body_logs").select("date,weight").eq("user_id",currentUser.id).gte("date",d).order("date",{ascending:true});
+  var{data}=await supabaseClient.from("body_logs").select("date,weight").eq("user_id",currentUser.id).gte("date",d).order("date",{ascending:true});
   if(!data||data.length<2){chartDiv.innerHTML="<div class=empty style=padding:20px><p>数据不足，记录体重后生成图表</p></div>";labelsDiv.innerHTML="";return;}
   var weights=data.map(function(e){return e.weight;});
   var maxW=Math.max.apply(null,weights),minW=Math.min.apply(null,weights),range=maxW-minW||1;
@@ -773,7 +774,7 @@ async function renderWeightChart() {
 async function recordWeight() {
   const w=parseFloat(document.getElementById("new-weight").value);
   if(!w||w<30||w>300)return;
-  await supabase.from("body_logs").upsert({user_id:currentUser.id,date:today,weight:w},{onConflict:"user_id,date"});
+  await supabaseClient.from("body_logs").upsert({user_id:currentUser.id,date:today,weight:w},{onConflict:"user_id,date"});
   document.getElementById("new-weight").value="";
   renderProgress();
 }
@@ -782,7 +783,7 @@ async function showStrengthLog() {
   const exName=document.getElementById("strength-ex-select").value;
   const logDiv=document.getElementById("strength-log");
   if(!exName){logDiv.innerHTML="<div class=empty><p>选择一个动作查看力量变化</p></div>";return;}
-  const{data:workouts}=await supabase.from("workouts").select("*").eq("user_id",currentUser.id).order("date",{ascending:false}).limit(30);
+  const{data:workouts}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).order("date",{ascending:false}).limit(30);
   const entries=[];
   for(const w of(workouts||[])){for(const ex of(w.exercises||[])){if(ex.name===exName&&ex.done&&ex.weight)entries.push({date:w.date,weight:ex.weight,reps:ex.reps,sets:ex.sets});}}
   if(entries.length===0){logDiv.innerHTML="<div class=empty><p>还没有这个动作的记录</p></div>";return;}
@@ -795,7 +796,7 @@ async function showStrengthLog() {
 
 // ============ SETTINGS ============
 async function openSettings() {
-  const{data}=await supabase.from("profiles").select("*").eq("id",currentUser.id).single();
+  const{data}=await supabaseClient.from("profiles").select("*").eq("id",currentUser.id).single();
   if(data){DATA.height=data.height;DATA.weight=data.weight;DATA.bodyfat=data.bodyfat;DATA.age=data.age;DATA.period=data.period;DATA.frequency=data.frequency;}
   document.getElementById("set-height").value=DATA.height;
   document.getElementById("set-weight").value=DATA.weight;
@@ -809,7 +810,7 @@ async function openSettings() {
 function closeSettings() { document.getElementById('settings-modal').classList.remove('show'); }
 async function saveSettings() {
   const u={height:parseInt(document.getElementById("set-height").value)||180,weight:parseFloat(document.getElementById("set-weight").value)||70,bodyfat:parseFloat(document.getElementById("set-bodyfat").value)||18,age:parseInt(document.getElementById("set-age").value)||22,period:document.getElementById("set-period").value,frequency:parseInt(document.getElementById("set-frequency").value)||4,updated_at:new Date().toISOString()};
-  await supabase.from("profiles").update(u).eq("id",currentUser.id);
+  await supabaseClient.from("profiles").update(u).eq("id",currentUser.id);
   Object.assign(DATA,u);
   closeSettings();renderTraining();renderDiet();renderProgress();updateAllStats();
 }
@@ -818,9 +819,9 @@ async function saveSettings() {
 async function updateAllStats() {
   if(!currentUser)return;
   const ms=today.slice(0,7)+"-01";
-  const{count:mc}=await supabase.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",ms);
+  const{count:mc}=await supabaseClient.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",ms);
   document.getElementById("stat-streak").textContent=mc||0;
-  const{count:tc}=await supabase.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id);
+  const{count:tc}=await supabaseClient.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id);
   document.getElementById("stat-total-workouts").textContent=tc||0;
   document.getElementById("stat-best-streak").textContent=DATA.bestStreak||0;
 }
@@ -828,18 +829,18 @@ async function updateAllStats() {
 // ============ STARTUP ============
 async function startup() {
   if (!initSupabase()) return;
-  const { data } = await supabase.auth.getSession();
+  const { data } = await supabaseClient.auth.getSession();
   if (data.session) {
     currentUser = data.session.user;
     showMainApp();
   } else {
     document.getElementById('auth-page').style.display = 'flex';
     document.querySelector('header').style.display = 'none';
-    document.querySelector('.tabs').style.display = 'none';
+    document.getElementById('main-tabs').style.display = 'none';
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
   }
-  supabase.auth.onAuthStateChange((event, session) => {
+  supabaseClient.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_IN' && session) {
       currentUser = session.user;
       showMainApp();
@@ -847,7 +848,7 @@ async function startup() {
       currentUser = null;
       document.getElementById('auth-page').style.display = 'flex';
       document.querySelector('header').style.display = 'none';
-      document.querySelector('.tabs').style.display = 'none';
+      document.getElementById('main-tabs').style.display = 'none';
       document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.page').forEach(p => p.style.display = 'none');
     }
