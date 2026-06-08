@@ -172,6 +172,102 @@ header h1 span { color: var(--accent); }
 .food-search-item:hover, .food-search-item:active { background: rgba(255,255,255,0.06); }
 .food-search-item .fs-name { flex:1; }
 .food-search-item .fs-macros { font-size: 11px; color: var(--text3); margin-left: 8px; }
+
+/* FitPlan refresh shell */
+:root {
+  --bg: #f5f9f7;
+  --card: #ffffff;
+  --card-hover: #edf5f2;
+  --accent: #0d9775;
+  --accent2: #55d6af;
+  --accent3: #2d6f96;
+  --text: #17342d;
+  --text2: #315b50;
+  --text3: #6d847c;
+  --border: #dbe8e3;
+  --danger: #bd3a46;
+  --success: #0d9775;
+  --warning: #d8891f;
+  --radius: 16px;
+  --shadow: none;
+}
+body { max-width: 430px; padding-bottom: 88px; }
+header { background: rgba(245,249,247,.92); backdrop-filter: blur(12px); padding: 18px 16px 10px; }
+header h1 { color: var(--text); letter-spacing: -0.04em; }
+.btn-icon, #user-avatar { background: #17342d !important; color: #fff !important; }
+#main-tabs {
+  position: fixed; left: max(9px, calc(50% - 206px)); right: max(9px, calc(50% - 206px)); bottom: 9px;
+  height: 60px; margin: 0; padding: 5px; border-radius: 17px; background: #17342d; z-index: 40;
+  box-shadow: 0 12px 24px rgba(24,61,51,.18);
+}
+#main-tabs .tab { color: #91ada4; font-size: 10px; padding: 6px 0; line-height: 1.1; border-radius: 12px; }
+#main-tabs .tab.active { background: transparent; color: #fff; }
+#main-tabs .tab .nav-ico { display: block; font-size: 16px; margin-bottom: 3px; color: #91ada4; }
+#main-tabs .tab.active .nav-ico { color: #58dcb3; }
+.page { padding: 0 14px; }
+.card, .stat-box, .chart-container { border: 1px solid var(--border); box-shadow: none; }
+.app-hero { background: #17342d; color: #fff; border-radius: 18px; padding: 16px; margin-bottom: 10px; }
+.app-hero h2 { font-size: 18px; line-height: 1.15; letter-spacing: -0.03em; margin: 4px 0 4px; }
+.app-hero p { color: #b8cec7; font-size: 11px; margin: 0; }
+.section-head { display: flex; justify-content: space-between; align-items: end; margin: 14px 2px 8px; }
+.section-head h2, .section-head h3 { font-size: 16px; line-height: 1; letter-spacing: -0.02em; margin: 0; }
+.section-head span { color: var(--text3); font-size: 11px; font-weight: 700; }
+.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metric-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 13px; }
+.metric-card.wide { grid-column: 1 / -1; }
+.metric-label { color: var(--text3); font-size: 10px; font-weight: 750; }
+.metric-value { color: var(--text); font-size: 22px; font-weight: 850; letter-spacing: -0.04em; margin-top: 2px; }
+.metric-value small { font-size: 10px; font-weight: 650; }
+.soft-tag { display: inline-block; border-radius: 999px; padding: 4px 8px; background: #dff3eb; color: #08745a; font-size: 10px; font-weight: 800; }
+.timeline { position: relative; padding-left: 18px; }
+.timeline:before { content: ""; position: absolute; left: 4px; top: 7px; bottom: 7px; width: 2px; background: #cfe2db; }
+.timeline-item { position: relative; margin-bottom: 10px; }
+.timeline-item:before { content: ""; position: absolute; left: -18px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); border: 3px solid var(--bg); }
+.timeline-time { color: var(--text3); font-size: 10px; margin-bottom: 4px; }
+.timeline-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+.timeline-card h3 { font-size: 13px; margin: 0 0 3px; }
+.timeline-card p { font-size: 11px; color: var(--text3); margin: 0; }
+.week-record { display: flex; gap: 5px; }
+.week-day { flex: 1; text-align: center; color: var(--text3); font-size: 10px; }
+.week-day strong { display: grid; place-items: center; width: 24px; height: 24px; margin: 5px auto 0; border-radius: 8px; background: #e1ebe7; color: #94a69f; font-size: 10px; }
+.week-day.workout strong { background: var(--accent); color: #fff; }
+.week-day.rest strong { background: #eaf0ed; color: #789087; }
+.suggestion-card {
+  background: #ffffff;
+  border-color: var(--border);
+}
+.suggestion-card .sug-title { color: var(--accent); }
+.suggestion-item { border-bottom-color: var(--border); }
+.ex-edit-group input, .ex-input,
+.form-group input, .form-group select,
+.weight-row input,
+#template-select, #strength-ex-select {
+  background: #dfece7 !important;
+  border: 1px solid #d2e2dc !important;
+  color: var(--text) !important;
+}
+.exercise-item, .food-item, .selected-ex {
+  background: #f5f9f7;
+  border: 1px solid #e1ece8;
+}
+.period-selector { background: #dfece7; }
+.period-btn.active { background: var(--accent); color: #fff; }
+.ex-check { border-color: #cfe2db; }
+.ex-check.checked { background: var(--accent); border-color: var(--accent); }
+.modal-overlay {
+  align-items: flex-start;
+  overflow-y: auto;
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+.modal {
+  max-height: none;
+  margin-bottom: 84px;
+}
+.task-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
 </style>
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
@@ -204,7 +300,7 @@ header h1 span { color: var(--accent); }
 <header style="display:none;">
   <h1>Fit<span>Plan</span></h1>
   <div style="display:flex; gap:8px; align-items:center;">
-    <div id="user-avatar" onclick="toggleUserMenu()" style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;"></div>
+    <div id="user-avatar" onclick="openSettings()" style="width:32px;height:32px;border-radius:50%;background:var(--accent);display:none;align-items:center;justify-content:center;font-size:13px;font-weight:700;cursor:pointer;"></div>
     <button class="btn-icon" onclick="openSettings()" title="设置">⚙</button>
   </div>
 </header>
@@ -215,9 +311,33 @@ header h1 span { color: var(--accent); }
 </div>
 
 <div id="main-tabs" class="tabs" style="display:none;" role="tablist" aria-label="主导航">
-  <button id="tab-training" class="tab active" onclick="switchTab('training')" role="tab" aria-selected="true" aria-controls="page-training">🏋️ 训练</button>
-  <button id="tab-diet" class="tab" onclick="switchTab('diet')" role="tab" aria-selected="false" aria-controls="page-diet">🍽 饮食</button>
-  <button id="tab-progress" class="tab" onclick="switchTab('progress')" role="tab" aria-selected="false" aria-controls="page-progress">📊 进度</button>
+  <button id="tab-overview" class="tab active" onclick="switchTab('overview')" role="tab" aria-selected="true" aria-controls="page-overview"><span class="nav-ico">⌂</span>总览</button>
+  <button id="tab-today" class="tab" onclick="switchTab('today')" role="tab" aria-selected="false" aria-controls="page-today"><span class="nav-ico">▣</span>今日</button>
+  <button id="tab-training" class="tab" onclick="switchTab('training')" role="tab" aria-selected="false" aria-controls="page-training"><span class="nav-ico">◉</span>训练</button>
+  <button id="tab-diet" class="tab" onclick="switchTab('diet')" role="tab" aria-selected="false" aria-controls="page-diet"><span class="nav-ico">◇</span>饮食</button>
+  <button id="tab-progress" class="tab" onclick="switchTab('progress')" role="tab" aria-selected="false" aria-controls="page-progress"><span class="nav-ico">↗</span>进度</button>
+</div>
+
+<!-- ===== OVERVIEW PAGE ===== -->
+<div class="page" id="page-overview" role="tabpanel" aria-labelledby="tab-overview">
+  <div class="app-hero">
+    <div class="metric-label">今日完成度</div>
+    <h2 id="overview-title">状态不错，继续保持</h2>
+    <p id="overview-subtitle">训练、饮食与体重的综合状态</p>
+  </div>
+  <div class="metric-grid">
+    <div class="metric-card"><div class="metric-label">训练进度</div><div class="metric-value" id="overview-training">0/0</div><div class="progress-bar"><div class="progress-fill" id="overview-training-bar" style="width:0%"></div></div></div>
+    <div class="metric-card"><div class="metric-label">热量摄入</div><div class="metric-value" id="overview-calories">0</div><div class="progress-bar"><div class="progress-fill" id="overview-calorie-bar" style="width:0%"></div></div></div>
+    <div class="metric-card wide"><div style="display:flex;justify-content:space-between;align-items:center;"><div><div class="metric-label">当前体重</div><div class="metric-value"><span id="overview-weight">--</span> <small>kg</small></div></div><span class="soft-tag" id="overview-weight-tag">今日待记录</span></div></div>
+  </div>
+  <div class="section-head"><h3>今日待办</h3><span>进入“今日”查看全部</span></div>
+  <div class="card" id="overview-tasks"></div>
+</div>
+
+<!-- ===== TODAY PAGE ===== -->
+<div class="page" id="page-today" role="tabpanel" aria-labelledby="tab-today">
+  <div class="section-head"><h2>今天，稳稳推进</h2><span id="today-date-label"></span></div>
+  <div class="timeline" id="today-timeline"></div>
 </div>
 
 <!-- ===== TRAINING PAGE ===== -->
@@ -278,6 +398,11 @@ header h1 span { color: var(--accent); }
     </div>
   </div>
   <div class="card">
+    <div class="card-header"><h3>常吃食物</h3><button id="manage-frequent-foods" class="btn btn-sm btn-outline" onclick="openFrequentFoodManager()">管理</button></div>
+    <div class="food-chips" id="frequent-foods"></div>
+    <div style="font-size:11px; color:var(--text3); margin-top:6px;">保存你经常吃的食物，点击即可记录</div>
+  </div>
+  <div class="card">
     <div class="card-header"><h3>🏫 食堂菜品</h3></div>
     <div class="food-chips" id="cafeteria-chips"></div>
     <div style="font-size:11px; color:var(--text3); margin-top:6px;">点击菜品添加到今日饮食</div>
@@ -326,6 +451,11 @@ header h1 span { color: var(--accent); }
     </div>
     <div class="strength-log" id="strength-log"><div class="empty"><p>选择一个动作查看力量变化</p></div></div>
   </div>
+  <div class="card" id="weekly-training-record">
+    <div class="card-header"><h3>本周训练记录</h3><span class="soft-tag" id="weekly-training-summary">--</span></div>
+    <div id="weekly-training-days"></div>
+    <div id="weekly-training-meta" style="font-size:11px;color:var(--text3);margin-top:10px;"></div>
+  </div>
   <div class="stats-row">
     <div class="stat-box"><div class="value" id="stat-total-workouts">0</div><div class="label">总训练次数</div></div>
     <div class="stat-box"><div class="value" id="stat-best-streak">0</div><div class="label">最长连续</div></div>
@@ -336,21 +466,54 @@ header h1 span { color: var(--accent); }
 <!-- ===== SETTINGS MODAL ===== -->
 <div class="modal-overlay" id="settings-modal" role="dialog" aria-modal="true" aria-label="个人设置">
   <div class="modal">
-    <h3>⚙ 个人数据</h3>
-    <div class="form-row">
-      <div class="form-group"><label>身高 (cm)</label><input id="set-height" type="number" value="180"></div>
-      <div class="form-group"><label>体重 (kg)</label><input id="set-weight" type="number" value="70"></div>
+    <h3>我的设置</h3>
+    <div class="card" style="margin-bottom:14px;background:var(--card-hover);">
+      <div id="settings-email" style="font-size:14px;font-weight:800;"></div>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">身体数据用于计算基础代谢与饮食目标</div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>体脂率 (%)</label><input id="set-bodyfat" type="number" value="18"></div>
-      <div class="form-group"><label>年龄</label><input id="set-age" type="number" value="22"></div>
+      <div class="form-group"><label for="set-sex">性别</label><select id="set-sex"><option value="male">男</option><option value="female">女</option></select></div>
+      <div class="form-group"><label for="set-age">年龄</label><input id="set-age" type="number" value="22"></div>
     </div>
-    <div class="form-group"><label>当前阶段</label><select id="set-period"><option value="bulk">增肌期</option><option value="cut">减脂期</option></select></div>
-    <div class="form-group"><label>训练频率</label><select id="set-frequency"><option value="3">每周3天</option><option value="4">每周4天</option><option value="5">每周5天</option><option value="6">每周6天</option></select></div>
+    <div class="form-row">
+      <div class="form-group"><label for="set-height">身高 (cm)</label><input id="set-height" type="number" value="180"></div>
+      <div class="form-group"><label for="set-weight">当前体重 (kg)</label><input id="set-weight" type="number" value="70"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="set-bodyfat">体脂率 (%)</label><input id="set-bodyfat" type="number" value="18"></div>
+      <div class="form-group"><label for="set-frequency">每周训练</label><select id="set-frequency"><option value="3">每周3天</option><option value="4">每周4天</option><option value="5">每周5天</option><option value="6">每周6天</option></select></div>
+    </div>
+    <div class="form-group"><label for="set-period">当前目标</label><select id="set-period"><option value="bulk">增肌期</option><option value="cut">减脂期</option><option value="maintain">维持</option></select></div>
+    <div class="form-group"><label for="set-activity">日常活动</label><select id="set-activity"><option value="1.35">轻度</option><option value="1.55">中等</option><option value="1.7">较高</option></select></div>
+    <div class="metric-grid" style="margin-bottom:14px;">
+      <div class="metric-card"><div class="metric-label">基础代谢 BMR</div><div class="metric-value" id="settings-bmr">--</div><div class="metric-label">kcal / 天</div></div>
+      <div class="metric-card"><div class="metric-label">每日消耗 TDEE</div><div class="metric-value" id="settings-tdee">--</div><div class="metric-label">kcal / 天</div></div>
+      <div class="metric-card wide"><div class="metric-label">建议摄入</div><div class="metric-value" id="settings-target">-- <small>kcal / 天</small></div><div class="metric-label" id="settings-macros">蛋白质 --g · 碳水 --g · 脂肪 --g</div></div>
+    </div>
     <div style="display:flex; gap:8px;">
       <button class="btn btn-secondary" style="flex:1;" onclick="closeSettings()">取消</button>
       <button class="btn btn-primary" style="flex:1;" onclick="saveSettings()">保存</button>
     </div>
+    <button class="btn btn-outline btn-block" style="margin-top:8px;" onclick="handleLogout()">退出登录</button>
+  </div>
+</div>
+
+<!-- ===== FREQUENT FOOD MODAL ===== -->
+<div class="modal-overlay" id="frequent-food-modal" role="dialog" aria-modal="true" aria-label="常吃食物管理">
+  <div class="modal">
+    <h3>管理常吃食物</h3>
+    <div id="frequent-food-list" style="margin-bottom:12px;"></div>
+    <div class="form-row">
+      <div class="form-group"><label for="freq-name">名称</label><input id="freq-name" placeholder="例如 我的燕麦杯"></div>
+      <div class="form-group"><label for="freq-cal">热量</label><input id="freq-cal" type="number" placeholder="kcal"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label for="freq-protein">蛋白质</label><input id="freq-protein" type="number" placeholder="g"></div>
+      <div class="form-group"><label for="freq-carbs">碳水</label><input id="freq-carbs" type="number" placeholder="g"></div>
+      <div class="form-group"><label for="freq-fat">脂肪</label><input id="freq-fat" type="number" placeholder="g"></div>
+    </div>
+    <button class="btn btn-primary btn-block" onclick="saveFrequentFood()">保存常吃食物</button>
+    <button class="btn btn-secondary btn-block" style="margin-top:8px;" onclick="closeFrequentFoodManager()">关闭</button>
   </div>
 </div>
 

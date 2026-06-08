@@ -15,14 +15,14 @@ function initSupabase() {
   return true;
 }
 
-let DATA = {height:180, weight:70, bodyfat:18, age:22, period:"bulk", frequency:4, weightLog:{}, dietLog:{}, trainingLog:{}, thisMonthWorkouts:0, totalWorkouts:0, currentMonth:"", lastWorkoutDate:"", bestStreak:0};
+let DATA = {height:180, weight:70, bodyfat:18, age:22, sex:"male", activity:1.55, period:"bulk", frequency:4, frequentFoods:[], weightLog:{}, dietLog:{}, trainingLog:{}, thisMonthWorkouts:0, totalWorkouts:0, currentMonth:"", lastWorkoutDate:"", bestStreak:0};
 const TD = () => new Date().toISOString().slice(0,10);
 const today = TD();
 
 // ============ CALCULATIONS ============
-function calcBMR() { return Math.round(10*DATA.weight + 6.25*DATA.height - 5*DATA.age + 5); }
-function calcTDEE() { return Math.round(calcBMR() * 1.55); }
-function calcTarget() { const t = calcTDEE(); return DATA.period === 'bulk' ? t + 300 : t - 300; }
+function calcBMR() { return Math.round(10*DATA.weight + 6.25*DATA.height - 5*DATA.age + (DATA.sex === "female" ? -161 : 5)); }
+function calcTDEE() { return Math.round(calcBMR() * (parseFloat(DATA.activity) || 1.55)); }
+function calcTarget() { const t = calcTDEE(); return DATA.period === 'bulk' ? t + 300 : DATA.period === 'cut' ? t - 300 : t; }
 function calcMacros() {
   const target = calcTarget();
   const protein = Math.round(DATA.weight * 2.0);
@@ -221,7 +221,12 @@ const FOOD_DB = [
 async function init() {
   if(currentUser){
     const{data:profile}=await supabaseClient.from("profiles").select("*").eq("id",currentUser.id).single();
-    if(profile){DATA.height=profile.height;DATA.weight=profile.weight;DATA.bodyfat=profile.bodyfat;DATA.age=profile.age;DATA.period=profile.period;DATA.frequency=profile.frequency;}
+    if(profile){
+      DATA.height=profile.height||DATA.height;DATA.weight=profile.weight||DATA.weight;DATA.bodyfat=profile.bodyfat||DATA.bodyfat;DATA.age=profile.age||DATA.age;DATA.period=profile.period||DATA.period;DATA.frequency=profile.frequency||DATA.frequency;
+      DATA.sex=localStorage.getItem("fitplan_sex")||DATA.sex;DATA.activity=parseFloat(localStorage.getItem("fitplan_activity"))||DATA.activity;DATA.frequentFoods=getLocalFrequentFoods();
+    } else {
+      DATA.frequentFoods=getLocalFrequentFoods();
+    }
   }
 }
 
@@ -307,26 +312,99 @@ function showMainApp() {
   document.querySelector('header').style.display = 'flex';
   document.getElementById('main-tabs').style.display = 'flex';
   document.querySelectorAll('.page').forEach(p => p.style.removeProperty('display'));
-  switchTab('training');
+  switchTab('overview');
   const email = currentUser.email || '';
   const initial = email.charAt(0).toUpperCase();
   const av = document.getElementById('user-avatar');
   av.textContent = initial; av.style.display = 'flex';
   document.getElementById('user-email-display').textContent = email;
-  init().then(() => { renderTraining(); renderDiet(); updateAllStats(); initTemplateSelect(); initStrengthSelect(); });
+  init().then(() => { renderTraining(); renderDiet(); renderOverview(); renderToday(); updateAllStats(); initTemplateSelect(); initStrengthSelect(); });
 }
 
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
+  const tabs = ['overview','today','training','diet','progress'];
   document.querySelectorAll('#main-tabs .tab').forEach((t,i) => {
-    const active = ['training','diet','progress'][i] === tab;
+    const active = tabs[i] === tab;
     t.classList.toggle('active', active);
     t.setAttribute('aria-selected', active);
   });
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
+  if (tab === 'overview') renderOverview();
+  if (tab === 'today') renderToday();
   if (tab === 'progress') renderProgress();
   if (tab === 'diet') renderDiet();
+}
+
+// ============ OVERVIEW + TODAY ============
+async function getTodayMeals() {
+  if (!currentUser) return [];
+  const { data: meals } = await supabaseClient.from("meals").select("*").eq("user_id", currentUser.id).eq("date", today);
+  return meals || [];
+}
+
+function flattenFoods(meals) {
+  const foods = [];
+  for (const meal of meals || []) {
+    for (const food of (meal.foods || [])) foods.push(food);
+  }
+  return foods;
+}
+
+function sumFoods(foods) {
+  return foods.reduce((total, food) => ({
+    cal: total.cal + (food.cal || 0),
+    protein: total.protein + (food.protein || 0),
+    carbs: total.carbs + (food.carbs || 0),
+    fat: total.fat + (food.fat || 0),
+  }), { cal: 0, protein: 0, carbs: 0, fat: 0 });
+}
+
+async function getLatestWeight() {
+  if (!currentUser) return null;
+  const { data } = await supabaseClient.from("body_logs").select("date,weight").eq("user_id", currentUser.id).order("date", { ascending: false }).limit(1);
+  return data && data[0] ? data[0] : null;
+}
+
+async function renderOverview() {
+  if (!currentUser || !document.getElementById("page-overview")) return;
+  const exercises = await getTodayTraining();
+  const done = exercises.filter(e => e.done).length;
+  const meals = await getTodayMeals();
+  const totals = sumFoods(flattenFoods(meals));
+  const macros = calcMacros();
+  const latestWeight = await getLatestWeight();
+  const trainingPct = exercises.length ? Math.min(100, done / exercises.length * 100) : 0;
+  const caloriePct = macros.target ? Math.min(100, totals.cal / macros.target * 100) : 0;
+
+  document.getElementById("overview-training").textContent = `${done}/${exercises.length}`;
+  document.getElementById("overview-training-bar").style.width = trainingPct + "%";
+  document.getElementById("overview-calories").textContent = totals.cal;
+  document.getElementById("overview-calorie-bar").style.width = caloriePct + "%";
+  document.getElementById("overview-weight").textContent = latestWeight ? latestWeight.weight : DATA.weight;
+  document.getElementById("overview-weight-tag").textContent = latestWeight && latestWeight.date === today ? "今日已记录" : "今日待记录";
+  document.getElementById("overview-tasks").innerHTML = `
+    <div class="task-row"><strong>完成今日训练</strong><span class="soft-tag">${done}/${exercises.length}</span></div>
+    <div class="task-row" style="margin-top:10px;"><strong>补充蛋白质</strong><span class="soft-tag">${Math.max(0, macros.protein - totals.protein)}g</span></div>
+  `;
+}
+
+async function renderToday() {
+  if (!currentUser || !document.getElementById("today-timeline")) return;
+  const exercises = await getTodayTraining();
+  const done = exercises.filter(e => e.done).length;
+  const meals = await getTodayMeals();
+  const totals = sumFoods(flattenFoods(meals));
+  const macros = calcMacros();
+  const latestWeight = await getLatestWeight();
+  document.getElementById("today-date-label").textContent = today;
+  document.getElementById("today-timeline").innerHTML = `
+    <div class="timeline-item"><div class="timeline-time">08:00 · 体重</div><div class="timeline-card"><h3>${latestWeight && latestWeight.date === today ? `今日体重 ${latestWeight.weight}kg` : "记录今日体重"}</h3><p>同步到进度与设置计算</p></div></div>
+    <div class="timeline-item"><div class="timeline-time">12:30 · 饮食</div><div class="timeline-card"><h3>已记录 ${totals.cal} kcal</h3><p>距离目标还差 ${Math.max(0, macros.target - totals.cal)} kcal</p></div></div>
+    <div class="timeline-item"><div class="timeline-time">18:00 · 训练</div><div class="timeline-card"><h3>今日训练 ${done}/${exercises.length}</h3><p>${exercises.length ? "继续完成当前训练计划" : "选择一个训练模板开始"}</p></div></div>
+    <div class="timeline-item"><div class="timeline-time">睡前 · 小结</div><div class="timeline-card"><h3>完成全部记录后生成</h3><p>回顾训练、饮食和体重变化</p></div></div>
+  `;
 }
 
 // ============ SMART SUGGESTIONS ============
@@ -491,8 +569,8 @@ function switchPeriod(p) {
 }
 
 // ============ TEMPLATE MANAGER ============
-function openTemplateManager() {
-  renderTemplateList();
+async function openTemplateManager() {
+  await renderTemplateList();
   document.getElementById('template-modal').classList.add('show');
   document.getElementById('template-builder-area').style.display = 'none';
 }
@@ -502,9 +580,9 @@ function closeTemplateManager() {
   renderTraining();
 }
 
-function renderTemplateList() {
+async function renderTemplateList() {
   const div = document.getElementById('template-list');
-  const userTemplates = getUserTemplates();
+  const userTemplates = await getUserTemplates();
   if (userTemplates.length === 0) {
     div.innerHTML = '<div class="empty" style="padding:20px;"><p>还没有自定义模板</p></div>';
   } else {
@@ -523,7 +601,7 @@ function renderTemplateList() {
   }
 }
 
-function showTemplateBuilder(editIndex) {
+async function showTemplateBuilder(editIndex) {
   const area = document.getElementById('template-builder-area');
   area.style.display = 'block';
   const parts = ['胸','背','腿','肩','手臂','核心'];
@@ -531,8 +609,9 @@ function showTemplateBuilder(editIndex) {
   let tplName = '';
   
   if (editIndex !== undefined && editIndex >= 0) {
-    const templates = getUserTemplates();
+    const templates = await getUserTemplates();
     const t = templates[editIndex];
+    if (!t) return;
     tplName = t.name;
     selectedExs = t.exercises.map(e => ({...e}));
   }
@@ -622,7 +701,7 @@ async function saveTemplate(editIndex) {
   if (!name) { alert('请输入模板名称'); return; }
   if (!area._selectedExs || area._selectedExs.length === 0) { alert('请至少选一个动作'); return; }
   
-  const templates = getUserTemplates();
+  const templates = await getUserTemplates();
   const tpl = { name, exercises: area._selectedExs.map(e => ({...e})) };
   
   if (editIndex >= 0 && editIndex < templates.length) {
@@ -632,21 +711,21 @@ async function saveTemplate(editIndex) {
   }
   await saveUserTemplates(templates);
   closeTemplateManager();
-  renderTemplateList();
-  refreshTemplateSelect();
+  await renderTemplateList();
+  await refreshTemplateSelect();
 }
 
-function editTemplate(i) {
-  showTemplateBuilder(i);
+async function editTemplate(i) {
+  await showTemplateBuilder(i);
 }
 
 async function deleteTemplate(i) {
   if (!confirm('确定删除这个模板？')) return;
-  const templates = getUserTemplates();
+  const templates = await getUserTemplates();
   templates.splice(i, 1);
   await saveUserTemplates(templates);
-  renderTemplateList();
-  refreshTemplateSelect();
+  await renderTemplateList();
+  await refreshTemplateSelect();
 }
 
 // ============ DIET ============
@@ -665,6 +744,7 @@ async function renderDiet() {
   document.getElementById("bar-protein").style.width=Math.min(100,totalProtein/macros.protein*100)+"%";
   document.getElementById("bar-carbs").style.width=Math.min(100,totalCarbs/macros.carbs*100)+"%";
   document.getElementById("bar-fat").style.width=Math.min(100,totalFat/macros.fat*100)+"%";
+  renderFrequentFoods();
   const foods=getCafeteriaFoods();
   document.getElementById("cafeteria-chips").innerHTML=foods.map((f,i)=>"<button class=food-chip onclick=addCafeteriaFood("+i+")>"+f.name+" <span style=font-size:10px;opacity:0.7;>"+f.cal+"kcal</span></button>").join("");
   const todayDiv=document.getElementById("today-foods");
@@ -672,13 +752,100 @@ async function renderDiet() {
   else{todayDiv.innerHTML=todayDiet.map((f,i)=>"<div class=food-item><span class=food-name>"+f.name+"</span><span class=food-cal>"+f.cal+" kcal</span><button class=\"btn btn-sm btn-outline\" onclick=removeFood("+i+") style=margin-left:8px;>\\u2715</button></div>").join("");}
 }
 
-async function addCafeteriaFood(i) {
+function getDefaultFrequentFoods() {
+  return [
+    { name: "鸡胸肉", cal: 130, protein: 28, carbs: 0, fat: 3 },
+    { name: "米饭", cal: 200, protein: 4, carbs: 44, fat: 1 },
+    { name: "鸡蛋", cal: 70, protein: 6, carbs: 1, fat: 5 },
+    { name: "香蕉", cal: 105, protein: 1, carbs: 27, fat: 0 },
+  ];
+}
+
+function getLocalFrequentFoods() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("fitplan_frequent_foods") || "[]");
+    return saved.length ? saved : getDefaultFrequentFoods();
+  } catch {
+    return getDefaultFrequentFoods();
+  }
+}
+
+function persistFrequentFoods() {
+  localStorage.setItem("fitplan_frequent_foods", JSON.stringify(DATA.frequentFoods || []));
+}
+
+function renderFrequentFoods() {
+  const div = document.getElementById("frequent-foods");
+  if (!div) return;
+  DATA.frequentFoods = DATA.frequentFoods && DATA.frequentFoods.length ? DATA.frequentFoods : getLocalFrequentFoods();
+  div.innerHTML = DATA.frequentFoods.map((f, i) => `<button class="food-chip" onclick="addFrequentFood(${i})">${f.name} <span style="font-size:10px;opacity:.7;">${f.cal}kcal</span></button>`).join("");
+}
+
+function renderFrequentFoodList() {
+  const div = document.getElementById("frequent-food-list");
+  if (!div) return;
+  DATA.frequentFoods = DATA.frequentFoods && DATA.frequentFoods.length ? DATA.frequentFoods : getLocalFrequentFoods();
+  div.innerHTML = DATA.frequentFoods.map((f, i) => `
+    <div class="food-item">
+      <span class="food-name">${f.name}<br><span style="font-size:11px;color:var(--text3);">${f.cal} kcal · 蛋${f.protein || 0}g 碳${f.carbs || 0}g 脂${f.fat || 0}g</span></span>
+      <button class="btn btn-sm btn-outline" onclick="deleteFrequentFood(${i})">删除</button>
+    </div>
+  `).join("");
+}
+
+function openFrequentFoodManager() {
+  renderFrequentFoodList();
+  document.getElementById("frequent-food-modal").classList.add("show");
+}
+
+function closeFrequentFoodManager() {
+  document.getElementById("frequent-food-modal").classList.remove("show");
+}
+
+function saveFrequentFood() {
+  const food = {
+    name: document.getElementById("freq-name").value.trim(),
+    cal: parseInt(document.getElementById("freq-cal").value) || 0,
+    protein: parseInt(document.getElementById("freq-protein").value) || 0,
+    carbs: parseInt(document.getElementById("freq-carbs").value) || 0,
+    fat: parseInt(document.getElementById("freq-fat").value) || 0,
+  };
+  if (!food.name || food.cal <= 0) return;
+  DATA.frequentFoods = DATA.frequentFoods || getLocalFrequentFoods();
+  DATA.frequentFoods.push(food);
+  persistFrequentFoods();
+  ["freq-name","freq-cal","freq-protein","freq-carbs","freq-fat"].forEach(id => document.getElementById(id).value = "");
+  renderFrequentFoodList();
+  renderFrequentFoods();
+}
+
+function deleteFrequentFood(i) {
+  DATA.frequentFoods = DATA.frequentFoods || getLocalFrequentFoods();
+  DATA.frequentFoods.splice(i, 1);
+  persistFrequentFoods();
+  renderFrequentFoodList();
+  renderFrequentFoods();
+}
+
+async function addFoodToToday(food) {
   if(!currentUser)return;
-  const food=getCafeteriaFoods()[i];
   const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
   if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
   else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:food.cal||0});}
   renderDiet();
+  renderOverview();
+  renderToday();
+}
+
+async function addFrequentFood(i) {
+  const food = (DATA.frequentFoods || getLocalFrequentFoods())[i];
+  if (food) await addFoodToToday(food);
+}
+
+async function addCafeteriaFood(i) {
+  if(!currentUser)return;
+  const food=getCafeteriaFoods()[i];
+  await addFoodToToday(food);
 }
 
 // ============ FOOD SEARCH ============
@@ -724,12 +891,9 @@ async function addCustomFood() {
   const fat=parseInt(document.getElementById("food-fat").value)||0;
   if(!name||cal<=0)return;
   const food={name,cal,protein,carbs,fat};
-  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
-  if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:cal});}
+  await addFoodToToday(food);
   ["food-name","food-cal","food-protein","food-carbs","food-fat"].forEach(id=>document.getElementById(id).value="");
   document.getElementById("food-search-results").innerHTML="";
-  renderDiet();
 }
 
 async function removeFood(i) {
@@ -755,7 +919,48 @@ async function clearTodayDiet() {
 }
 
 // ============ PROGRESS ============
-function renderProgress() { renderWeightChart(); updateAllStats(); }
+function renderProgress() { renderWeightChart(); renderWeeklyTrainingRecord(); updateAllStats(); }
+
+function weekDates() {
+  const now = new Date();
+  const day = now.getDay() || 7;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - day + 1);
+  const dates = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    dates.push(d.toISOString().slice(0,10));
+  }
+  return dates;
+}
+
+async function renderWeeklyTrainingRecord() {
+  if (!currentUser || !document.getElementById("weekly-training-record")) return;
+  const dates = weekDates();
+  const { data: workouts } = await supabaseClient.from("workouts").select("*").eq("user_id", currentUser.id).gte("date", dates[0]).lte("date", dates[6]).order("date", { ascending: true });
+  const byDate = {};
+  for (const workout of workouts || []) byDate[workout.date] = workout;
+  const labels = ["一","二","三","四","五","六","日"];
+  let trained = 0;
+  let totalSets = 0;
+  let burn = 0;
+  const html = dates.map((date, i) => {
+    const workout = byDate[date];
+    const exercises = workout ? (workout.exercises || []) : [];
+    const done = exercises.filter(e => e.done).length;
+    if (done > 0) trained++;
+    totalSets += exercises.reduce((sum, e) => sum + (e.done ? (parseInt(e.sets) || 0) : 0), 0);
+    burn += done * 65;
+    const isFuture = date > today;
+    const state = done > 0 ? "workout" : isFuture ? "future" : "rest";
+    const mark = done > 0 ? "✓" : isFuture ? "" : "休";
+    return `<div class="week-day ${state}"><span>${labels[i]}</span><strong>${mark}</strong></div>`;
+  }).join("");
+  document.getElementById("weekly-training-days").innerHTML = `<div class="week-record">${html}</div>`;
+  document.getElementById("weekly-training-summary").textContent = `已训练 ${trained}/${DATA.frequency || 4} 天`;
+  document.getElementById("weekly-training-meta").textContent = `本周训练量 ${totalSets} 组 · 预计消耗 ${burn} kcal`;
+}
 
 async function renderWeightChart() {
   var chartDiv=document.getElementById("weight-chart");
@@ -798,21 +1003,61 @@ async function showStrengthLog() {
 async function openSettings() {
   const{data}=await supabaseClient.from("profiles").select("*").eq("id",currentUser.id).single();
   if(data){DATA.height=data.height;DATA.weight=data.weight;DATA.bodyfat=data.bodyfat;DATA.age=data.age;DATA.period=data.period;DATA.frequency=data.frequency;}
+  DATA.sex=localStorage.getItem("fitplan_sex")||DATA.sex;
+  DATA.activity=parseFloat(localStorage.getItem("fitplan_activity"))||DATA.activity;
+  document.getElementById("settings-email").textContent=currentUser.email||"";
+  document.getElementById("set-sex").value=DATA.sex;
   document.getElementById("set-height").value=DATA.height;
   document.getElementById("set-weight").value=DATA.weight;
   document.getElementById("set-bodyfat").value=DATA.bodyfat;
   document.getElementById("set-age").value=DATA.age;
   document.getElementById("set-period").value=DATA.period;
   document.getElementById("set-frequency").value=DATA.frequency;
+  document.getElementById("set-activity").value=String(DATA.activity);
+  ["set-sex","set-height","set-weight","set-bodyfat","set-age","set-period","set-frequency","set-activity"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.oninput = updateSettingsPreview;
+  });
+  updateSettingsPreview();
   document.getElementById("settings-modal").classList.add("show");
 }
 
 function closeSettings() { document.getElementById('settings-modal').classList.remove('show'); }
+
+function readSettingsForm() {
+  return {
+    sex: document.getElementById("set-sex").value,
+    height: parseInt(document.getElementById("set-height").value)||180,
+    weight: parseFloat(document.getElementById("set-weight").value)||70,
+    bodyfat: parseFloat(document.getElementById("set-bodyfat").value)||18,
+    age: parseInt(document.getElementById("set-age").value)||22,
+    period: document.getElementById("set-period").value,
+    frequency: parseInt(document.getElementById("set-frequency").value)||4,
+    activity: parseFloat(document.getElementById("set-activity").value)||1.55,
+  };
+}
+
+function updateSettingsPreview() {
+  const original = { ...DATA };
+  Object.assign(DATA, readSettingsForm());
+  const bmr = calcBMR();
+  const tdee = calcTDEE();
+  const macros = calcMacros();
+  document.getElementById("settings-bmr").textContent = bmr;
+  document.getElementById("settings-tdee").textContent = tdee;
+  document.getElementById("settings-target").innerHTML = macros.target + " <small>kcal / 天</small>";
+  document.getElementById("settings-macros").textContent = `蛋白质 ${macros.protein}g · 碳水 ${macros.carbs}g · 脂肪 ${macros.fat}g`;
+  Object.assign(DATA, original);
+}
+
 async function saveSettings() {
-  const u={height:parseInt(document.getElementById("set-height").value)||180,weight:parseFloat(document.getElementById("set-weight").value)||70,bodyfat:parseFloat(document.getElementById("set-bodyfat").value)||18,age:parseInt(document.getElementById("set-age").value)||22,period:document.getElementById("set-period").value,frequency:parseInt(document.getElementById("set-frequency").value)||4,updated_at:new Date().toISOString()};
+  const form = readSettingsForm();
+  localStorage.setItem("fitplan_sex", form.sex);
+  localStorage.setItem("fitplan_activity", String(form.activity));
+  const u={height:form.height,weight:form.weight,bodyfat:form.bodyfat,age:form.age,period:form.period,frequency:form.frequency,updated_at:new Date().toISOString()};
   await supabaseClient.from("profiles").update(u).eq("id",currentUser.id);
-  Object.assign(DATA,u);
-  closeSettings();renderTraining();renderDiet();renderProgress();updateAllStats();
+  Object.assign(DATA,u,{sex:form.sex,activity:form.activity});
+  closeSettings();renderTraining();renderDiet();renderProgress();renderOverview();renderToday();updateAllStats();
 }
 
 // ============ STATS ============
