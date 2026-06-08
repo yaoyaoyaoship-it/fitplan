@@ -97,5 +97,5 @@
 - [x] Run `node --check fitplan.js`.
 - [x] Run `npm test` or the direct test command.
 - [x] Run a final local browser flow for login, all five modules, settings, frequent food, and template manager.
-- [ ] Commit and push to `main`.
-- [ ] Wait for GitHub Pages deployment and run the same flow online.
+- [x] Commit and push to `main`.
+- [x] Wait for GitHub Pages deployment and run the same flow online.
