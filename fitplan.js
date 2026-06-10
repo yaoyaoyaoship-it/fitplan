@@ -79,6 +79,108 @@ const EXERCISE_LIBRARY = {
   '俄罗斯转体': { part: '核心', defaultSets: 3, defaultReps: '20', defaultWeight: 0 },
 };
 
+const EXERCISE_PARTS = ['胸','背','腿','肩','手臂','核心'];
+let customExerciseState = { items: [], mode: "loading", loaded: false };
+
+function customExerciseStorageKey() {
+  return `fitplan_custom_exercises_${currentUser?.id || "guest"}`;
+}
+
+function normalizeCustomExercise(item) {
+  return {
+    id: item.id || `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    name: String(item.name || "").trim(),
+    part: EXERCISE_PARTS.includes(item.part) ? item.part : "胸",
+    defaultSets: Math.max(1, parseInt(item.defaultSets ?? item.default_sets) || 4),
+    defaultReps: String(item.defaultReps ?? item.default_reps ?? "8-10").trim(),
+    defaultWeight: Math.max(0, parseFloat(item.defaultWeight ?? item.default_weight) || 0),
+  };
+}
+
+function readLocalCustomExercises() {
+  try {
+    return JSON.parse(localStorage.getItem(customExerciseStorageKey()) || "[]").map(normalizeCustomExercise);
+  } catch {
+    return [];
+  }
+}
+
+function writeLocalCustomExercises(items) {
+  localStorage.setItem(customExerciseStorageKey(), JSON.stringify(items.map(normalizeCustomExercise)));
+}
+
+function isMissingCustomExerciseTable(error) {
+  const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+  return text.includes("42p01") || text.includes("pgrst205") || text.includes("custom_exercises");
+}
+
+function customExercisePayload(item) {
+  return {
+    user_id: currentUser.id,
+    name: item.name,
+    part: item.part,
+    default_sets: item.defaultSets,
+    default_reps: item.defaultReps,
+    default_weight: item.defaultWeight,
+  };
+}
+
+async function loadCustomExercises(force = false) {
+  if (!currentUser) return [];
+  if (customExerciseState.loaded && !force) return customExerciseState.items;
+  const localItems = readLocalCustomExercises();
+  const { data, error } = await supabaseClient.from("custom_exercises").select("*").eq("user_id", currentUser.id).order("created_at", { ascending: true });
+  if (error) {
+    customExerciseState = { items: localItems, mode: isMissingCustomExerciseTable(error) ? "local" : "pending", loaded: true };
+    return customExerciseState.items;
+  }
+
+  let cloudItems = (data || []).map(normalizeCustomExercise);
+  if (localItems.length) {
+    const cloudNames = new Set(cloudItems.map(item => item.name.toLowerCase()));
+    const pending = localItems.filter(item => !cloudNames.has(item.name.toLowerCase()));
+    if (pending.length) {
+      const { error: mergeError } = await supabaseClient.from("custom_exercises").upsert(
+        pending.map(customExercisePayload),
+        { onConflict: "user_id,name" },
+      );
+      if (mergeError) {
+        customExerciseState = { items: [...cloudItems, ...pending], mode: "pending", loaded: true };
+        return customExerciseState.items;
+      }
+      const { data: refreshed } = await supabaseClient.from("custom_exercises").select("*").eq("user_id", currentUser.id).order("created_at", { ascending: true });
+      cloudItems = (refreshed || []).map(normalizeCustomExercise);
+    }
+    localStorage.removeItem(customExerciseStorageKey());
+  }
+  customExerciseState = { items: cloudItems, mode: "cloud", loaded: true };
+  return cloudItems;
+}
+
+function allExerciseEntries() {
+  const presets = Object.entries(EXERCISE_LIBRARY).map(([name, item]) => [name, { ...item, preset: true }]);
+  const custom = customExerciseState.items.map(item => [item.name, { ...item, preset: false }]);
+  return [...presets, ...custom];
+}
+
+function getExerciseDefinition(name) {
+  if (EXERCISE_LIBRARY[name]) return EXERCISE_LIBRARY[name];
+  return customExerciseState.items.find(item => item.name === name) || {};
+}
+
+function validateCustomExercise(item, editingId = "") {
+  if (!item.name) return "请输入动作名称";
+  if (!EXERCISE_PARTS.includes(item.part)) return "请选择训练部位";
+  if (item.defaultSets < 1 || item.defaultSets > 20) return "组数应为 1 到 20";
+  if (!item.defaultReps) return "请输入默认次数";
+  if (item.defaultWeight < 0) return "重量不能为负数";
+  if (EXERCISE_LIBRARY[item.name]) return "该名称与系统动作重复";
+  const duplicate = customExerciseState.items.some(existing =>
+    existing.id !== editingId && existing.name.toLowerCase() === item.name.toLowerCase()
+  );
+  return duplicate ? "你已经添加过同名动作" : "";
+}
+
 const PRESET_TEMPLATES = {
   '推胸+三头': ['杠铃卧推','哑铃上斜卧推','哑铃飞鸟','绳索夹胸','绳索下压','窄距卧推'],
   '拉背+二头': ['引体向上','杠铃划船','高位下拉','坐姿划船','杠铃弯举','哑铃锤式弯举'],
@@ -308,6 +410,7 @@ async function handleLogout() {
 }
 
 function showMainApp() {
+  customExerciseState = { items: [], mode: "loading", loaded: false };
   document.getElementById('auth-page').style.display = 'none';
   document.querySelector('header').style.display = 'flex';
   document.getElementById('main-tabs').style.display = 'flex';
@@ -392,6 +495,18 @@ function ensureMealTypeSelection() {
   select.value = suggestMealType();
 }
 
+function openDietForMeal(mealType) {
+  const select = document.getElementById("meal-type-select");
+  if (select) {
+    select.value = normalizeMealType(mealType);
+    select.dataset.userSelected = "true";
+  }
+  switchTab("diet");
+  requestAnimationFrame(() => {
+    document.getElementById("frequent-food-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+}
+
 function groupMealsByType(meals) {
   const groups = Object.fromEntries(MEAL_TYPES.map(type => [type, []]));
   for (const meal of meals || []) groups[normalizeMealType(meal.meal_type)].push(meal);
@@ -461,10 +576,11 @@ async function renderToday() {
     return `
       <div class="timeline-item ${recorded ? "meal-recorded" : "meal-empty"}" data-meal-type="${type}">
         <div class="timeline-time">${MEAL_TIMES[type]} · ${type}</div>
-        <div class="timeline-card">
+        <button class="timeline-card timeline-action" type="button" onclick="openDietForMeal('${type}')" aria-label="${recorded ? "继续添加" : "记录"}${type}">
           <h3>${recorded ? `${mealTotals.cal} kcal · ${foods.length} 项` : `${type}还未记录`}</h3>
           <p class="timeline-foods">${recorded ? `${names}${more}` : "前往饮食页添加本餐食物"}</p>
-        </div>
+          <span class="timeline-card-action"><span>${recorded ? "继续添加" : "去记录"}</span><span>→</span></span>
+        </button>
       </div>
     `;
   }).join("");
@@ -639,7 +755,8 @@ function switchPeriod(p) {
 
 // ============ TEMPLATE MANAGER ============
 async function openTemplateManager() {
-  await renderTemplateList();
+  await Promise.all([renderTemplateList(), loadCustomExercises()]);
+  renderCustomExerciseManager();
   document.getElementById('template-modal').classList.add('show');
   document.getElementById('template-builder-area').style.display = 'none';
 }
@@ -647,6 +764,116 @@ function closeTemplateManager() {
   document.getElementById('template-modal').classList.remove('show');
   document.getElementById('template-builder-area').style.display = 'none';
   renderTraining();
+}
+
+function customExerciseSyncMessage() {
+  if (customExerciseState.mode === "cloud") return ["已开启云同步", ""];
+  if (customExerciseState.mode === "pending") return ["同步暂时失败，已保存在当前浏览器", "pending"];
+  return ["尚未部署云同步表，动作暂存在当前浏览器", "pending"];
+}
+
+function renderCustomExerciseManager() {
+  const list = document.getElementById("custom-exercise-list");
+  const sync = document.getElementById("custom-exercise-sync");
+  if (!list || !sync) return;
+  const [message, className] = customExerciseSyncMessage();
+  sync.textContent = message;
+  sync.className = `sync-note ${className}`;
+  if (!customExerciseState.items.length) {
+    list.innerHTML = '<div class="empty" style="padding:8px 0;"><p>还没有自定义动作</p></div>';
+    return;
+  }
+  list.innerHTML = customExerciseState.items.map((item, index) => `
+    <div class="custom-exercise-row">
+      <div class="custom-exercise-row-info">
+        <strong>${escapeHtml(item.name)}</strong>
+        <span>${item.part} · ${item.defaultSets}组 × ${escapeHtml(item.defaultReps)}次 · ${item.defaultWeight}kg</span>
+      </div>
+      <div class="custom-exercise-actions">
+        <button class="btn btn-xs btn-outline" onclick="editCustomExercise(${index})">编辑</button>
+        <button class="btn btn-xs btn-danger" onclick="deleteCustomExercise(${index})">删除</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+function openCustomExerciseForm(index = -1) {
+  const form = document.getElementById("custom-exercise-form");
+  const item = index >= 0 ? customExerciseState.items[index] : null;
+  document.getElementById("custom-exercise-id").value = item?.id || "";
+  document.getElementById("custom-exercise-name").value = item?.name || "";
+  document.getElementById("custom-exercise-part").value = item?.part || "胸";
+  document.getElementById("custom-exercise-sets").value = item?.defaultSets || 4;
+  document.getElementById("custom-exercise-reps").value = item?.defaultReps || "8-10";
+  document.getElementById("custom-exercise-weight").value = item?.defaultWeight ?? 0;
+  document.getElementById("custom-exercise-error").textContent = "";
+  document.getElementById("save-custom-exercise").textContent = item ? "保存修改" : "保存动作";
+  form.style.display = "block";
+  document.getElementById("custom-exercise-name").focus();
+}
+
+function closeCustomExerciseForm() {
+  document.getElementById("custom-exercise-form").style.display = "none";
+  document.getElementById("custom-exercise-error").textContent = "";
+}
+
+function editCustomExercise(index) {
+  openCustomExerciseForm(index);
+}
+
+async function saveCustomExerciseFromForm() {
+  const editingId = document.getElementById("custom-exercise-id").value;
+  const item = normalizeCustomExercise({
+    id: editingId || undefined,
+    name: document.getElementById("custom-exercise-name").value,
+    part: document.getElementById("custom-exercise-part").value,
+    defaultSets: document.getElementById("custom-exercise-sets").value,
+    defaultReps: document.getElementById("custom-exercise-reps").value,
+    defaultWeight: document.getElementById("custom-exercise-weight").value,
+  });
+  const validation = validateCustomExercise(item, editingId);
+  if (validation) {
+    document.getElementById("custom-exercise-error").textContent = validation;
+    return;
+  }
+
+  if (customExerciseState.mode === "cloud") {
+    const query = editingId
+      ? supabaseClient.from("custom_exercises").update(customExercisePayload(item)).eq("id", editingId).eq("user_id", currentUser.id)
+      : supabaseClient.from("custom_exercises").insert(customExercisePayload(item));
+    const { error } = await query;
+    if (!error) {
+      await loadCustomExercises(true);
+      closeCustomExerciseForm();
+      renderCustomExerciseManager();
+      return;
+    }
+    customExerciseState.mode = "pending";
+  }
+
+  const existingIndex = customExerciseState.items.findIndex(existing => existing.id === editingId);
+  if (existingIndex >= 0) customExerciseState.items[existingIndex] = item;
+  else customExerciseState.items.push(item);
+  writeLocalCustomExercises(customExerciseState.items);
+  closeCustomExerciseForm();
+  renderCustomExerciseManager();
+}
+
+async function deleteCustomExercise(index) {
+  const item = customExerciseState.items[index];
+  if (!item || !confirm(`删除自定义动作“${item.name}”？`)) return;
+  if (customExerciseState.mode === "cloud" && !String(item.id).startsWith("local-")) {
+    const { error } = await supabaseClient.from("custom_exercises").delete().eq("id", item.id).eq("user_id", currentUser.id);
+    if (error) {
+      const sync = document.getElementById("custom-exercise-sync");
+      sync.textContent = "删除同步失败，请稍后重试";
+      sync.className = "sync-note pending";
+      return;
+    }
+  }
+  customExerciseState.items.splice(index, 1);
+  if (customExerciseState.mode !== "cloud") writeLocalCustomExercises(customExerciseState.items);
+  renderCustomExerciseManager();
 }
 
 async function renderTemplateList() {
@@ -673,7 +900,8 @@ async function renderTemplateList() {
 async function showTemplateBuilder(editIndex) {
   const area = document.getElementById('template-builder-area');
   area.style.display = 'block';
-  const parts = ['胸','背','腿','肩','手臂','核心'];
+  await loadCustomExercises();
+  const parts = EXERCISE_PARTS;
   let selectedExs = [];
   let tplName = '';
   
@@ -690,9 +918,9 @@ async function showTemplateBuilder(editIndex) {
     <div class="form-group"><label>模板名称</label><input id="tpl-name" value="${tplName}" placeholder="如：我的推胸日"></div>
     <div class="form-group"><label>动作库（点击添加）</label>
       ${parts.map(part => {
-        const exs = Object.entries(EXERCISE_LIBRARY).filter(([n,lib]) => lib.part === part);
+        const exs = allExerciseEntries().filter(([n,lib]) => lib.part === part);
         return `<div style="margin-bottom:6px;"><span style="font-size:10px;color:var(--text3);">${part}部 </span>
-          ${exs.map(([n]) => `<button class="ex-lib-chip" data-ex="${n}" onclick="toggleExInBuilder(this,'${n}')">${n}</button>`).join('')}
+          ${exs.map(([n, lib]) => `<button class="ex-lib-chip" data-ex="${escapeHtml(n)}" onclick="toggleExInBuilder(this)">${escapeHtml(n)}${lib.preset ? "" : " · 自定义"}</button>`).join('')}
         </div>`;
       }).join('')}
     </div>
@@ -701,7 +929,7 @@ async function showTemplateBuilder(editIndex) {
     </div>
     <p class="hint-text">点击上方动作库添加，已选动作可调组数/次数/重量</p>
     <div class="modal-actions">
-      <button class="btn btn-secondary" style="flex:1;" onclick="closeTemplateManager()">取消</button>
+      <button class="btn btn-secondary" id="cancel-template-builder" style="flex:1;" onclick="hideTemplateBuilder()">取消</button>
       <button class="btn btn-primary" style="flex:1;" onclick="saveTemplate(${editIndex !== undefined ? editIndex : -1})">💾 保存模板</button>
     </div>
   `;
@@ -713,12 +941,17 @@ async function showTemplateBuilder(editIndex) {
   
   // Pre-select chips
   for (const ex of selectedExs) {
-    const chip = area.querySelector(`[data-ex="${ex.name}"]`);
+    const chip = [...area.querySelectorAll("[data-ex]")].find(item => item.dataset.ex === ex.name);
     if (chip) chip.classList.add('selected');
   }
 }
 
-function toggleExInBuilder(chip, exName) {
+function hideTemplateBuilder() {
+  document.getElementById("template-builder-area").style.display = "none";
+}
+
+function toggleExInBuilder(chip) {
+  const exName = chip.dataset.ex;
   const area = document.getElementById('template-builder-area');
   if (!area._selectedExs) area._selectedExs = [];
   const idx = area._selectedExs.findIndex(e => e.name === exName);
@@ -726,7 +959,7 @@ function toggleExInBuilder(chip, exName) {
     area._selectedExs.splice(idx, 1);
     chip.classList.remove('selected');
   } else {
-    const lib = EXERCISE_LIBRARY[exName] || {};
+    const lib = getExerciseDefinition(exName);
     area._selectedExs.push({ name: exName, sets: lib.defaultSets||4, reps: lib.defaultReps||'8-10', weight: lib.defaultWeight||0 });
     chip.classList.add('selected');
   }

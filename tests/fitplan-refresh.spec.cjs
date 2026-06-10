@@ -161,7 +161,18 @@ async function main() {
       throw new Error(`Expected meal-aware Today timeline, got ${JSON.stringify(todayMealState)}`);
     }
 
-    await page.click("#tab-diet");
+    await page.locator('[data-meal-type="晚餐"] .timeline-card').click();
+    await page.waitForSelector("#page-diet.active", { timeout: 5000 });
+    const mealNavigationState = await page.evaluate(() => ({
+      selectedMeal: document.querySelector("#meal-type-select")?.value || "",
+      userSelected: document.querySelector("#meal-type-select")?.dataset.userSelected || "",
+      hasFrequentCard: !!document.querySelector("#frequent-food-card"),
+    }));
+    if (mealNavigationState.selectedMeal !== "晚餐"
+        || mealNavigationState.userSelected !== "true"
+        || !mealNavigationState.hasFrequentCard) {
+      throw new Error(`Expected Today meal navigation, got ${JSON.stringify(mealNavigationState)}`);
+    }
     await page.waitForTimeout(800);
     while (await page.evaluate(() => [...document.querySelectorAll("#today-foods .food-delete")]
       .some((button) => button.getAttribute("aria-label")?.includes("Meal timeline ")))) {
@@ -185,6 +196,50 @@ async function main() {
     if (!templateState.visible) {
       throw new Error(`Expected template manager to open, got ${JSON.stringify(templateState)}`);
     }
+
+    const exerciseName = `Playwright exercise ${Date.now()}`;
+    await page.click("#add-custom-exercise");
+    await page.fill("#custom-exercise-name", exerciseName);
+    await page.selectOption("#custom-exercise-part", "背");
+    await page.fill("#custom-exercise-sets", "4");
+    await page.fill("#custom-exercise-reps", "10-12");
+    await page.fill("#custom-exercise-weight", "35");
+    await page.click("#save-custom-exercise");
+    await page.waitForFunction(
+      (name) => document.querySelector("#custom-exercise-list")?.innerText.includes(name),
+      exerciseName,
+      { timeout: 10000 },
+    );
+    let exerciseRow = page.locator("#custom-exercise-list .custom-exercise-row").filter({ hasText: exerciseName });
+    await exerciseRow.getByRole("button", { name: "编辑" }).click();
+    await page.fill("#custom-exercise-weight", "40");
+    await page.click("#save-custom-exercise");
+    await page.waitForFunction(
+      (name) => {
+        const row = [...document.querySelectorAll("#custom-exercise-list .custom-exercise-row")]
+          .find((item) => item.innerText.includes(name));
+        return row?.innerText.includes("40kg");
+      },
+      exerciseName,
+      { timeout: 10000 },
+    );
+    await page.click("button[onclick='showTemplateBuilder()']");
+    await page.waitForFunction(
+      (name) => [...document.querySelectorAll("#template-builder-area .ex-lib-chip")]
+        .some((chip) => chip.dataset.ex === name),
+      exerciseName,
+      { timeout: 5000 },
+    );
+    await page.click("#cancel-template-builder");
+    exerciseRow = page.locator("#custom-exercise-list .custom-exercise-row").filter({ hasText: exerciseName });
+    page.once("dialog", (dialog) => dialog.accept());
+    await exerciseRow.getByRole("button", { name: "删除" }).click();
+    await page.waitForFunction(
+      (name) => !document.querySelector("#custom-exercise-list")?.innerText.includes(name),
+      exerciseName,
+      { timeout: 10000 },
+    );
+
     await page.locator("#template-modal").getByRole("button", { name: "关闭" }).click();
     await page.waitForTimeout(500);
 
@@ -211,8 +266,12 @@ async function main() {
     }
     await page.setViewportSize({ width: 430, height: 900 });
 
-    await page.click("#user-avatar");
-    await page.waitForTimeout(500);
+    await page.locator("header button[onclick='openSettings()']").click();
+    await page.waitForFunction(
+      () => document.querySelector("#settings-modal")?.classList.contains("show"),
+      null,
+      { timeout: 5000 },
+    );
     const settingsState = await page.evaluate(() => ({
       visible: document.querySelector("#settings-modal")?.classList.contains("show") || false,
       text: document.querySelector("#settings-modal")?.innerText || "",
