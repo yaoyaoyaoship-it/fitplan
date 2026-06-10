@@ -227,6 +227,20 @@ header h1 { color: var(--text); letter-spacing: -0.04em; }
 .timeline-card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
 .timeline-card h3 { font-size: 13px; margin: 0 0 3px; }
 .timeline-card p { font-size: 11px; color: var(--text3); margin: 0; }
+.today-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 14px; }
+.today-summary-item { background: #e6f2ed; border-radius: 12px; padding: 10px 8px; text-align: center; }
+.today-summary-item strong { display: block; color: var(--text); font-size: 15px; line-height: 1.1; }
+.today-summary-item span { display: block; color: var(--text3); font-size: 9px; margin-top: 4px; }
+.timeline-item.meal-empty:before { background: #b7c9c2; }
+.timeline-item.meal-recorded .timeline-card { background: #f1faf6; }
+.timeline-foods { color: var(--text2) !important; line-height: 1.45; }
+.meal-picker { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.meal-picker label { color: var(--text2); font-size: 12px; font-weight: 750; }
+.meal-picker select { min-width: 112px; padding: 8px 10px; background: #dfece7; border: 1px solid #d2e2dc; border-radius: 9px; color: var(--text); font-size: 12px; font-weight: 700; }
+.meal-record-group + .meal-record-group { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.meal-record-heading { display: flex; justify-content: space-between; align-items: center; margin-bottom: 7px; color: var(--text2); font-size: 11px; font-weight: 800; }
+.meal-record-heading span:last-child { color: var(--text3); font-weight: 650; }
+.food-delete { width: 34px; height: 30px; padding: 0; flex: 0 0 auto; font-size: 17px; line-height: 1; }
 .week-record { display: flex; gap: 5px; }
 .week-day { flex: 1; text-align: center; color: var(--text3); font-size: 10px; }
 .week-day strong { display: grid; place-items: center; width: 24px; height: 24px; margin: 5px auto 0; border-radius: 8px; background: #e1ebe7; color: #94a69f; font-size: 10px; }
@@ -337,7 +351,14 @@ header h1 { color: var(--text); letter-spacing: -0.04em; }
 <!-- ===== TODAY PAGE ===== -->
 <div class="page" id="page-today" role="tabpanel" aria-labelledby="tab-today">
   <div class="section-head"><h2>今天，稳稳推进</h2><span id="today-date-label"></span></div>
-  <div class="timeline" id="today-timeline"></div>
+  <div class="today-summary" id="today-summary">
+    <div class="today-summary-item"><strong>--</strong><span>已摄入 kcal</span></div>
+    <div class="today-summary-item"><strong>--</strong><span>已记录餐次</span></div>
+    <div class="today-summary-item"><strong>--</strong><span>训练动作</span></div>
+  </div>
+  <div class="timeline" id="today-timeline">
+    <div class="timeline-item meal-empty"><div class="timeline-time">今日安排</div><div class="timeline-card"><h3>正在整理今日记录</h3><p>训练、饮食和体重数据加载后会显示在这里</p></div></div>
+  </div>
 </div>
 
 <!-- ===== TRAINING PAGE ===== -->
@@ -396,6 +417,15 @@ header h1 { color: var(--text); letter-spacing: -0.04em; }
         <div class="progress-bar"><div class="progress-fill progress-green" id="bar-fat" style="width:0%"></div></div>
       </div>
     </div>
+  </div>
+  <div class="card meal-picker">
+    <label for="meal-type-select">这次记录到</label>
+    <select id="meal-type-select" onchange="markMealTypeSelected()">
+      <option value="早餐">早餐</option>
+      <option value="午餐">午餐</option>
+      <option value="晚餐">晚餐</option>
+      <option value="加餐">加餐</option>
+    </select>
   </div>
   <div class="card">
     <div class="card-header"><h3>常吃食物</h3><button id="manage-frequent-foods" class="btn btn-sm btn-outline" onclick="openFrequentFoodManager()">管理</button></div>

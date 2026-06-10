@@ -108,6 +108,63 @@ async function main() {
     await page.click("#frequent-food-modal .btn-secondary");
     await page.waitForTimeout(500);
 
+    while (await page.evaluate(() => [...document.querySelectorAll("#today-foods .food-delete")]
+      .some((button) => button.getAttribute("aria-label")?.includes("Meal timeline ")))) {
+      await page.evaluate(() => [...document.querySelectorAll("#today-foods .food-delete")]
+        .find((button) => button.getAttribute("aria-label")?.includes("Meal timeline "))?.click());
+      await page.waitForTimeout(700);
+    }
+
+    const mealTestName = `Meal timeline ${Date.now()}`;
+    await page.selectOption("#meal-type-select", "晚餐");
+    await page.fill("#food-name", mealTestName);
+    await page.fill("#food-cal", "321");
+    await page.fill("#food-protein", "20");
+    await page.fill("#food-carbs", "35");
+    await page.fill("#food-fat", "8");
+    await page.click("button[onclick='addCustomFood()']");
+    await page.waitForFunction(
+      (name) => document.querySelector("#today-foods")?.innerText.includes(name),
+      mealTestName,
+      { timeout: 12000 },
+    );
+
+    const mealGroups = await page.evaluate(() => [...document.querySelectorAll("#today-foods .meal-record-group")].map((group) => ({
+      type: group.dataset.mealType,
+      text: group.innerText,
+      deleteTexts: [...group.querySelectorAll("button")].map((button) => button.textContent.trim()),
+    })));
+    const dinnerState = mealGroups.find((group) => group.type === "晚餐");
+    if (!dinnerState || !dinnerState.text.includes(mealTestName)) {
+      throw new Error(`Expected dinner record ${JSON.stringify(mealTestName)}, got ${JSON.stringify(mealGroups)}`);
+    }
+    if (!dinnerState.deleteTexts.length || dinnerState.deleteTexts.some((text) => text !== "×" || text.includes("\\u2715"))) {
+      throw new Error(`Expected real delete symbols, got ${JSON.stringify(dinnerState.deleteTexts)}`);
+    }
+
+    await page.click("#tab-today");
+    await page.waitForTimeout(1200);
+    const todayMealState = await page.evaluate((name) => ({
+      hasSummary: !!document.querySelector("#today-summary"),
+      breakfastTime: document.querySelector('[data-meal-type="早餐"] .timeline-time')?.textContent || "",
+      dinnerText: document.querySelector('[data-meal-type="晚餐"]')?.innerText || "",
+      dinnerCalories: document.querySelector('[data-meal-type="晚餐"]')?.innerText.includes("321 kcal") || false,
+      hasFood: document.querySelector('[data-meal-type="晚餐"]')?.innerText.includes(name) || false,
+    }), mealTestName);
+    if (!todayMealState.hasSummary || !todayMealState.breakfastTime.includes("09:00")
+        || !todayMealState.dinnerCalories || !todayMealState.hasFood) {
+      throw new Error(`Expected meal-aware Today timeline, got ${JSON.stringify(todayMealState)}`);
+    }
+
+    await page.click("#tab-diet");
+    await page.waitForTimeout(800);
+    while (await page.evaluate(() => [...document.querySelectorAll("#today-foods .food-delete")]
+      .some((button) => button.getAttribute("aria-label")?.includes("Meal timeline ")))) {
+      await page.evaluate(() => [...document.querySelectorAll("#today-foods .food-delete")]
+        .find((button) => button.getAttribute("aria-label")?.includes("Meal timeline "))?.click());
+      await page.waitForTimeout(500);
+    }
+
     await page.click("#tab-training");
     await page.waitForTimeout(1500);
     await page.getByRole("button", { name: /管理|模板/ }).first().click();

@@ -361,6 +361,54 @@ function sumFoods(foods) {
   }), { cal: 0, protein: 0, carbs: 0, fat: 0 });
 }
 
+const MEAL_TYPES = ["早餐", "午餐", "晚餐", "加餐"];
+const MEAL_TIMES = { 早餐: "09:00", 午餐: "12:30", 晚餐: "18:30", 加餐: "21:30" };
+
+function normalizeMealType(mealType) {
+  return MEAL_TYPES.includes(mealType) ? mealType : "午餐";
+}
+
+function suggestMealType(date = new Date()) {
+  const minutes = date.getHours() * 60 + date.getMinutes();
+  if (minutes < 10 * 60 + 30) return "早餐";
+  if (minutes < 15 * 60 + 30) return "午餐";
+  if (minutes < 21 * 60 + 30) return "晚餐";
+  return "加餐";
+}
+
+function markMealTypeSelected() {
+  const select = document.getElementById("meal-type-select");
+  if (select) select.dataset.userSelected = "true";
+}
+
+function selectedMealType() {
+  const select = document.getElementById("meal-type-select");
+  return normalizeMealType(select?.value || suggestMealType());
+}
+
+function ensureMealTypeSelection() {
+  const select = document.getElementById("meal-type-select");
+  if (!select || select.dataset.userSelected === "true") return;
+  select.value = suggestMealType();
+}
+
+function groupMealsByType(meals) {
+  const groups = Object.fromEntries(MEAL_TYPES.map(type => [type, []]));
+  for (const meal of meals || []) groups[normalizeMealType(meal.meal_type)].push(meal);
+  return groups;
+}
+
+function mealGroupSummary(meals) {
+  const foods = flattenFoods(meals);
+  return { foods, totals: sumFoods(foods) };
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+  })[char]);
+}
+
 async function getLatestWeight() {
   if (!currentUser) return null;
   const { data } = await supabaseClient.from("body_logs").select("date,weight").eq("user_id", currentUser.id).order("date", { ascending: false }).limit(1);
@@ -396,13 +444,34 @@ async function renderToday() {
   const done = exercises.filter(e => e.done).length;
   const meals = await getTodayMeals();
   const totals = sumFoods(flattenFoods(meals));
-  const macros = calcMacros();
   const latestWeight = await getLatestWeight();
+  const mealGroups = groupMealsByType(meals);
+  const recordedMeals = MEAL_TYPES.filter(type => mealGroupSummary(mealGroups[type]).foods.length > 0).length;
   document.getElementById("today-date-label").textContent = today;
+  document.getElementById("today-summary").innerHTML = `
+    <div class="today-summary-item"><strong>${totals.cal}</strong><span>已摄入 kcal</span></div>
+    <div class="today-summary-item"><strong>${recordedMeals}/4</strong><span>已记录餐次</span></div>
+    <div class="today-summary-item"><strong>${done}/${exercises.length}</strong><span>训练动作</span></div>
+  `;
+  const mealTimeline = MEAL_TYPES.map(type => {
+    const { foods, totals: mealTotals } = mealGroupSummary(mealGroups[type]);
+    const names = foods.slice(0, 3).map(food => escapeHtml(food.name)).join("、");
+    const more = foods.length > 3 ? ` 等 ${foods.length} 项` : "";
+    const recorded = foods.length > 0;
+    return `
+      <div class="timeline-item ${recorded ? "meal-recorded" : "meal-empty"}" data-meal-type="${type}">
+        <div class="timeline-time">${MEAL_TIMES[type]} · ${type}</div>
+        <div class="timeline-card">
+          <h3>${recorded ? `${mealTotals.cal} kcal · ${foods.length} 项` : `${type}还未记录`}</h3>
+          <p class="timeline-foods">${recorded ? `${names}${more}` : "前往饮食页添加本餐食物"}</p>
+        </div>
+      </div>
+    `;
+  }).join("");
   document.getElementById("today-timeline").innerHTML = `
     <div class="timeline-item"><div class="timeline-time">08:00 · 体重</div><div class="timeline-card"><h3>${latestWeight && latestWeight.date === today ? `今日体重 ${latestWeight.weight}kg` : "记录今日体重"}</h3><p>同步到进度与设置计算</p></div></div>
-    <div class="timeline-item"><div class="timeline-time">12:30 · 饮食</div><div class="timeline-card"><h3>已记录 ${totals.cal} kcal</h3><p>距离目标还差 ${Math.max(0, macros.target - totals.cal)} kcal</p></div></div>
-    <div class="timeline-item"><div class="timeline-time">18:00 · 训练</div><div class="timeline-card"><h3>今日训练 ${done}/${exercises.length}</h3><p>${exercises.length ? "继续完成当前训练计划" : "选择一个训练模板开始"}</p></div></div>
+    ${mealTimeline}
+    <div class="timeline-item"><div class="timeline-time">19:30 · 训练</div><div class="timeline-card"><h3>今日训练 ${done}/${exercises.length}</h3><p>${exercises.length ? "继续完成当前训练计划" : "选择一个训练模板开始"}</p></div></div>
     <div class="timeline-item"><div class="timeline-time">睡前 · 小结</div><div class="timeline-card"><h3>完成全部记录后生成</h3><p>回顾训练、饮食和体重变化</p></div></div>
   `;
 }
@@ -734,8 +803,9 @@ function getCafeteriaFoods() { return DEFAULT_FOODS; }
 async function renderDiet() {
   const macros=calcMacros();
   const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
-  const todayDiet=[];let totalCal=0,totalProtein=0,totalCarbs=0,totalFat=0;
-  if(meals){for(const m of meals){for(const f of(m.foods||[])){todayDiet.push(f);totalCal+=f.cal||0;totalProtein+=f.protein||0;totalCarbs+=f.carbs||0;totalFat+=f.fat||0;}}}
+  const todayDiet=flattenFoods(meals);
+  const totals=sumFoods(todayDiet);
+  const totalCal=totals.cal,totalProtein=totals.protein,totalCarbs=totals.carbs,totalFat=totals.fat;
   document.getElementById("diet-summary").textContent=totalCal+" / "+macros.target+" kcal";
   document.getElementById("diet-progress").style.width=Math.min(100,totalCal/macros.target*100)+"%";
   document.getElementById("macro-protein").textContent=totalProtein+"/"+macros.protein+"g";
@@ -745,11 +815,28 @@ async function renderDiet() {
   document.getElementById("bar-carbs").style.width=Math.min(100,totalCarbs/macros.carbs*100)+"%";
   document.getElementById("bar-fat").style.width=Math.min(100,totalFat/macros.fat*100)+"%";
   renderFrequentFoods();
+  ensureMealTypeSelection();
   const foods=getCafeteriaFoods();
   document.getElementById("cafeteria-chips").innerHTML=foods.map((f,i)=>"<button class=food-chip onclick=addCafeteriaFood("+i+")>"+f.name+" <span style=font-size:10px;opacity:0.7;>"+f.cal+"kcal</span></button>").join("");
   const todayDiv=document.getElementById("today-foods");
   if(todayDiet.length===0){todayDiv.innerHTML="<div class=empty><p>还没记录饮食</p></div>";}
-  else{todayDiv.innerHTML=todayDiet.map((f,i)=>"<div class=food-item><span class=food-name>"+f.name+"</span><span class=food-cal>"+f.cal+" kcal</span><button class=\"btn btn-sm btn-outline\" onclick=removeFood("+i+") style=margin-left:8px;>\\u2715</button></div>").join("");}
+  else{
+    const grouped=groupMealsByType(meals);
+    todayDiv.innerHTML=MEAL_TYPES.map(type=>{
+      const rows=grouped[type];
+      const summary=mealGroupSummary(rows);
+      if(summary.foods.length===0)return "";
+      const items=rows.flatMap(meal=>(meal.foods||[]).map((food,index)=>({meal,food,index})));
+      return `<div class="meal-record-group" data-meal-type="${type}">
+        <div class="meal-record-heading"><span>${type}</span><span>${summary.totals.cal} kcal · ${summary.foods.length} 项</span></div>
+        ${items.map(({meal,food,index})=>`<div class="food-item">
+          <span class="food-name">${escapeHtml(food.name)}</span>
+          <span class="food-cal">${food.cal||0} kcal</span>
+          <button class="btn btn-sm btn-outline food-delete" onclick="removeFood('${meal.id}',${index})" aria-label="删除 ${escapeHtml(food.name)}">×</button>
+        </div>`).join("")}
+      </div>`;
+    }).join("");
+  }
 }
 
 function getDefaultFrequentFoods() {
@@ -827,14 +914,17 @@ function deleteFrequentFood(i) {
   renderFrequentFoods();
 }
 
-async function addFoodToToday(food) {
+async function refreshDietViews() {
+  await Promise.all([renderDiet(), renderOverview(), renderToday()]);
+}
+
+async function addFoodToToday(food, mealType = selectedMealType()) {
   if(!currentUser)return;
-  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type","正餐").single();
+  const normalizedType=normalizeMealType(mealType);
+  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type",normalizedType).limit(1).maybeSingle();
   if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:"正餐",foods:[food],total_kcal:food.cal||0});}
-  renderDiet();
-  renderOverview();
-  renderToday();
+  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:normalizedType,foods:[food],total_kcal:food.cal||0});}
+  await refreshDietViews();
 }
 
 async function addFrequentFood(i) {
@@ -896,26 +986,20 @@ async function addCustomFood() {
   document.getElementById("food-search-results").innerHTML="";
 }
 
-async function removeFood(i) {
+async function removeFood(mealId, foodIndex) {
   if(!currentUser)return;
-  const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
-  if(!meals||meals.length===0)return;
-  let ti=0;
-  for(const meal of meals){
-    const foods=meal.foods||[];
-    if(i<ti+foods.length){
-      foods.splice(i-ti,1);
-      if(foods.length===0){await supabaseClient.from("meals").delete().eq("id",meal.id);}
-      else{await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-      break;
-    }
-    ti+=foods.length;
-  }
-  renderDiet();
+  const{data:meal}=await supabaseClient.from("meals").select("*").eq("id",mealId).eq("user_id",currentUser.id).maybeSingle();
+  if(!meal)return;
+  const foods=[...(meal.foods||[])];
+  if(foodIndex<0||foodIndex>=foods.length)return;
+  foods.splice(foodIndex,1);
+  if(foods.length===0){await supabaseClient.from("meals").delete().eq("id",meal.id);}
+  else{await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
+  await refreshDietViews();
 }
 async function clearTodayDiet() {
   await supabaseClient.from("meals").delete().eq("user_id",currentUser.id).eq("date",today);
-  renderDiet();
+  await refreshDietViews();
 }
 
 // ============ PROGRESS ============
