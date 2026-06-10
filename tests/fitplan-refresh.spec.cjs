@@ -188,6 +188,29 @@ async function main() {
     await page.locator("#template-modal").getByRole("button", { name: "关闭" }).click();
     await page.waitForTimeout(500);
 
+    await page.setViewportSize({ width: 320, height: 800 });
+    const trainingInputState = await page.evaluate(() => {
+      const row = document.querySelector("#exercise-list .exercise-item");
+      const inputs = row ? [...row.querySelectorAll(".ex-edit-group input")] : [];
+      const check = row?.querySelector(".ex-check");
+      const group = row?.querySelector(".ex-edit-group");
+      const groupRect = group?.getBoundingClientRect();
+      const checkRect = check?.getBoundingClientRect();
+      return {
+        widths: inputs.map((input) => input.getBoundingClientRect().width),
+        appearances: inputs.map((input) => getComputedStyle(input).appearance),
+        overlapsCheck: !!(groupRect && checkRect && groupRect.right > checkRect.left),
+      };
+    });
+    if (trainingInputState.widths.length && (
+      trainingInputState.widths.some((width) => width < 42)
+      || trainingInputState.appearances.some((appearance) => appearance !== "textfield")
+      || trainingInputState.overlapsCheck
+    )) {
+      throw new Error(`Expected readable narrow-screen training inputs, got ${JSON.stringify(trainingInputState)}`);
+    }
+    await page.setViewportSize({ width: 430, height: 900 });
+
     await page.click("#user-avatar");
     await page.waitForTimeout(500);
     const settingsState = await page.evaluate(() => ({

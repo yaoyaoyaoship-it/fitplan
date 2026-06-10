@@ -570,8 +570,8 @@ async function renderTraining() {
           <div class="ex-detail">${ex.sets}组 × ${ex.reps}次 · ${ex.weight}kg</div>
         </div>
         <div class="ex-edit-group">
-          <input type="number" value="${ex.weight}" onchange="updateExParam(${i},'weight',this.value)" title="重量kg" style="width:40px;">
-          <input type="number" value="${ex.sets}" onchange="updateExParam(${i},'sets',this.value)" title="组数" style="width:30px;">
+          <input type="number" inputmode="decimal" value="${ex.weight}" onchange="updateExParam(${i},'weight',this.value)" title="重量kg" aria-label="${ex.name} 重量kg">
+          <input type="number" inputmode="numeric" value="${ex.sets}" onchange="updateExParam(${i},'sets',this.value)" title="组数" aria-label="${ex.name} 组数">
         </div>
         <div class="ex-check ${ex.done ? 'checked' : ''}" onclick="toggleExercise(${i})">${ex.done ? '✓' : ''}</div>
       </div>
