@@ -35,7 +35,7 @@ The automatic choice is only a default. The user can select another meal type be
 
 - Keep weight and training as separate daily checkpoints.
 - Replace the single fixed `12:30 · 饮食` checkpoint with four meal checkpoints:
-  - `08:00 · 早餐`
+  - `09:00 · 早餐`
   - `12:30 · 午餐`
   - `18:30 · 晚餐`
   - `21:30 · 加餐`
