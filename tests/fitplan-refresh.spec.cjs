@@ -84,6 +84,111 @@ async function main() {
       throw new Error(`Expected overview active after login, got ${state.activeTab}/${state.activePage}`);
     }
 
+    const dateString = (offset) => {
+      const date = new Date();
+      date.setHours(12, 0, 0, 0);
+      date.setDate(date.getDate() + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    };
+    await page.click("#tab-today");
+    await page.waitForSelector("#date-context-bar", { state: "visible", timeout: 5000 });
+
+    await page.fill("#selected-date-input", dateString(-1));
+    await page.dispatchEvent("#selected-date-input", "change");
+    await page.waitForFunction(() => document.querySelector("#date-context-bar")?.dataset.mode === "editable-past");
+    await page.click("#tab-diet");
+    await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll(".diet-entry-card")];
+      return cards.length === 4 && cards.every((card) => getComputedStyle(card).display !== "none");
+    });
+    const backfillFoodName = `Backfill food ${Date.now()}`;
+    await page.selectOption("#meal-type-select", "晚餐");
+    await page.fill("#food-name", backfillFoodName);
+    await page.fill("#food-cal", "222");
+    await page.click("button[onclick='addCustomFood()']");
+    await page.waitForFunction(
+      (name) => document.querySelector("#today-foods")?.innerText.includes(name),
+      backfillFoodName,
+      { timeout: 12000 },
+    );
+    const backfillDateSaved = await page.evaluate(async (name) => {
+      const { data } = await supabaseClient.from("meals").select("date,foods").eq("user_id", currentUser.id).eq("date", selectedDate);
+      return (data || []).some((meal) => (meal.foods || []).some((food) => food.name === name));
+    }, backfillFoodName);
+    if (!backfillDateSaved) throw new Error("Expected food to be saved on the selected backfill date");
+    await page.evaluate((name) => [...document.querySelectorAll("#today-foods .food-delete")]
+      .find((button) => button.getAttribute("aria-label")?.includes(name))?.click(), backfillFoodName);
+    await page.waitForFunction(
+      (name) => !document.querySelector("#today-foods")?.innerText.includes(name),
+      backfillFoodName,
+      { timeout: 12000 },
+    );
+
+    await page.fill("#selected-date-input", dateString(-8));
+    await page.dispatchEvent("#selected-date-input", "change");
+    await page.waitForFunction(() => document.querySelector("#date-context-bar")?.dataset.mode === "readonly");
+    await page.click("#tab-diet");
+    await page.waitForFunction(() => {
+      const cards = [...document.querySelectorAll(".diet-entry-card")];
+      return cards.length === 4 && cards.every((card) => getComputedStyle(card).display === "none");
+    });
+    if (await page.locator("#diet-clear-button").isVisible()) throw new Error("Read-only history must not show diet clearing controls");
+
+    const futureDate = dateString(30);
+    const futureCountBefore = await page.evaluate(async (date) => {
+      const { count } = await supabaseClient.from("workouts").select("*", { count: "exact", head: true }).eq("user_id", currentUser.id).eq("date", date);
+      return count || 0;
+    }, futureDate);
+    await page.fill("#selected-date-input", futureDate);
+    await page.dispatchEvent("#selected-date-input", "change");
+    await page.waitForFunction(() => document.querySelector("#date-context-bar")?.dataset.mode === "future");
+    await page.click("#tab-training");
+    await page.waitForTimeout(1200);
+    const futureCountAfter = await page.evaluate(async (date) => {
+      const { count } = await supabaseClient.from("workouts").select("*", { count: "exact", head: true }).eq("user_id", currentUser.id).eq("date", date);
+      return count || 0;
+    }, futureDate);
+    if (futureCountAfter !== futureCountBefore) {
+      throw new Error(`Opening a future date created a workout: ${futureCountBefore} -> ${futureCountAfter}`);
+    }
+    if (await page.locator("#template-select").isDisabled()) throw new Error("Future dates should allow template planning");
+    if (!(await page.locator("#training-reset-button").isDisabled())) throw new Error("Future dates must not allow resetting training");
+    if (!(await page.locator("#training-finish-button").isDisabled())) throw new Error("Future dates must not allow finishing training");
+    if (await page.locator("#training-rest-button").isVisible()) throw new Error("Future dates must not allow rest marking");
+
+    const restCandidate = await page.evaluate(async () => {
+      const dates = Array.from({ length: 7 }, (_, index) => shiftDateString(today, -(index + 1)));
+      const { data: workouts } = await supabaseClient.from("workouts").select("date").eq("user_id", currentUser.id).gte("date", dates[6]).lte("date", dates[0]);
+      const statuses = await getDailyStatuses(dates[6], dates[0]);
+      const occupied = new Set((workouts || []).map((workout) => workout.date));
+      return dates.find((date) => !occupied.has(date) && !statuses[date]) || "";
+    });
+    if (restCandidate) {
+      await page.fill("#selected-date-input", restCandidate);
+      await page.dispatchEvent("#selected-date-input", "change");
+      await page.click("#tab-training");
+      await page.waitForFunction(() => document.querySelector("#training-rest-button")?.offsetParent !== null);
+      page.once("dialog", (dialog) => dialog.accept());
+      await page.click("#training-rest-button");
+      await page.click("#tab-progress");
+      await page.waitForFunction(
+        (date) => document.querySelector(`.week-day.rest[data-date="${date}"]`),
+        restCandidate,
+        { timeout: 10000 },
+      );
+      await page.click("#tab-training");
+      await page.click("#training-rest-button");
+      await page.click("#tab-progress");
+      await page.waitForFunction(
+        (date) => !document.querySelector(`.week-day.rest[data-date="${date}"]`),
+        restCandidate,
+        { timeout: 10000 },
+      );
+    }
+
+    await page.click("#date-today-button");
+    await page.waitForFunction(() => document.querySelector("#date-context-bar")?.dataset.mode === "today");
+
     await page.click("#tab-diet");
     await page.waitForTimeout(1500);
     const dietState = await page.evaluate(() => ({
@@ -266,7 +371,7 @@ async function main() {
     }
     await page.setViewportSize({ width: 430, height: 900 });
 
-    await page.locator("header button[onclick='openSettings()']").click();
+    await page.evaluate(() => openSettings());
     await page.waitForFunction(
       () => document.querySelector("#settings-modal")?.classList.contains("show"),
       null,

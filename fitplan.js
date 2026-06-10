@@ -16,8 +16,195 @@ function initSupabase() {
 }
 
 let DATA = {height:180, weight:70, bodyfat:18, age:22, sex:"male", activity:1.55, period:"bulk", frequency:4, frequentFoods:[], weightLog:{}, dietLog:{}, trainingLog:{}, thisMonthWorkouts:0, totalWorkouts:0, currentMonth:"", lastWorkoutDate:"", bestStreak:0};
-const TD = () => new Date().toISOString().slice(0,10);
+const TD = (date = new Date()) => {
+  const local = new Date(date);
+  local.setMinutes(local.getMinutes() - local.getTimezoneOffset());
+  return local.toISOString().slice(0,10);
+};
 const today = TD();
+let selectedDate = today;
+let activeTab = "overview";
+let dailyStatusMode = "loading";
+
+function parseLocalDate(dateString) {
+  const [year, month, day] = String(dateString).split("-").map(Number);
+  return new Date(year, month - 1, day, 12, 0, 0, 0);
+}
+
+function shiftDateString(dateString, amount) {
+  const date = parseLocalDate(dateString);
+  date.setDate(date.getDate() + amount);
+  return TD(date);
+}
+
+function dayOffsetFromToday(dateString) {
+  return Math.round((parseLocalDate(dateString) - parseLocalDate(today)) / 86400000);
+}
+
+function selectedDateMode() {
+  const offset = dayOffsetFromToday(selectedDate);
+  if (offset === 0) return "today";
+  if (offset > 0) return "future";
+  if (offset >= -7) return "editable-past";
+  return "readonly";
+}
+
+function canEditSelectedDate() {
+  const mode = selectedDateMode();
+  return mode === "today" || mode === "editable-past";
+}
+
+function canPlanSelectedDate() {
+  return selectedDateMode() !== "readonly";
+}
+
+function formatSelectedDateLabel() {
+  const date = parseLocalDate(selectedDate);
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+function updateDateContext() {
+  const bar = document.getElementById("date-context-bar");
+  const input = document.getElementById("selected-date-input");
+  const label = document.getElementById("date-mode-label");
+  const notice = document.getElementById("date-context-notice");
+  if (!bar || !input || !label || !notice) return;
+  const mode = selectedDateMode();
+  const labels = { today: "今天", "editable-past": "可补录", readonly: "只读历史", future: "未来计划" };
+  const notices = {
+    today: "",
+    "editable-past": "此日期在七天补录范围内，可以修改训练、饮食、体重和休息状态。",
+    readonly: "此日期已超过七天补录范围，只能查看已有记录。",
+    future: "未来日期仅能安排训练计划，不能记录完成状态、饮食或体重。",
+  };
+  input.value = selectedDate;
+  bar.dataset.mode = mode;
+  label.textContent = `${formatSelectedDateLabel()} · ${labels[mode]}`;
+  label.className = `date-mode ${mode}`;
+  notice.textContent = notices[mode];
+  notice.hidden = !notices[mode] || activeTab === "overview";
+  bar.classList.toggle("show", activeTab !== "overview");
+}
+
+function renderActiveDateView() {
+  updateDateContext();
+  if (activeTab === "today") renderToday();
+  if (activeTab === "training") renderTraining();
+  if (activeTab === "diet") renderDiet();
+  if (activeTab === "progress") renderProgress();
+}
+
+function handleSelectedDateChange(value) {
+  if (!value) return;
+  selectedDate = value;
+  renderActiveDateView();
+}
+
+function shiftSelectedDate(amount) {
+  selectedDate = shiftDateString(selectedDate, amount);
+  renderActiveDateView();
+}
+
+function goToToday() {
+  selectedDate = today;
+  renderActiveDateView();
+}
+
+function dailyStatusStorageKey() {
+  return `fitplan_daily_status_${currentUser?.id || "guest"}`;
+}
+
+function readLocalDailyStatuses() {
+  try {
+    return JSON.parse(localStorage.getItem(dailyStatusStorageKey()) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function writeLocalDailyStatuses(statuses) {
+  localStorage.setItem(dailyStatusStorageKey(), JSON.stringify(statuses));
+}
+
+function isMissingDailyStatusTable(error) {
+  const text = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+  return text.includes("42p01") || text.includes("pgrst205") || text.includes("daily_status");
+}
+
+async function getDailyStatuses(startDate, endDate) {
+  if (!currentUser) return {};
+  const local = readLocalDailyStatuses();
+  const { data, error } = await supabaseClient.from("daily_status").select("date,status").eq("user_id", currentUser.id).gte("date", startDate).lte("date", endDate);
+  if (error) {
+    dailyStatusMode = isMissingDailyStatusTable(error) ? "local" : "pending";
+    return Object.fromEntries(Object.entries(local).filter(([date]) => date >= startDate && date <= endDate));
+  }
+  dailyStatusMode = "cloud";
+  const cloud = Object.fromEntries((data || []).map(item => [item.date, item.status]));
+  const pending = Object.entries(local).filter(([date, status]) => status === "rest" && !cloud[date]);
+  if (pending.length) {
+    const { error: mergeError } = await supabaseClient.from("daily_status").upsert(
+      pending.map(([date, status]) => ({ user_id: currentUser.id, date, status })),
+      { onConflict: "user_id,date" },
+    );
+    if (!mergeError) {
+      localStorage.removeItem(dailyStatusStorageKey());
+      for (const [date, status] of pending) cloud[date] = status;
+    } else {
+      dailyStatusMode = "pending";
+      for (const [date, status] of pending) cloud[date] = status;
+    }
+  }
+  return cloud;
+}
+
+async function setRestStatus(date) {
+  if (!currentUser) return;
+  if (dailyStatusMode === "cloud") {
+    const { error } = await supabaseClient.from("daily_status").upsert(
+      { user_id: currentUser.id, date, status: "rest" },
+      { onConflict: "user_id,date" },
+    );
+    if (!error) return;
+    dailyStatusMode = "pending";
+  }
+  const local = readLocalDailyStatuses();
+  local[date] = "rest";
+  writeLocalDailyStatuses(local);
+}
+
+async function clearRestStatus(date) {
+  if (!currentUser) return;
+  if (dailyStatusMode === "cloud") {
+    const { error } = await supabaseClient.from("daily_status").delete().eq("user_id", currentUser.id).eq("date", date);
+    if (!error) return;
+    dailyStatusMode = "pending";
+  }
+  const local = readLocalDailyStatuses();
+  delete local[date];
+  writeLocalDailyStatuses(local);
+}
+
+async function toggleSelectedDateRest() {
+  if (!canEditSelectedDate() || selectedDate === today) return;
+  const statuses = await getDailyStatuses(selectedDate, selectedDate);
+  if (statuses[selectedDate] === "rest") {
+    await clearRestStatus(selectedDate);
+    renderTraining();
+    renderProgress();
+    return;
+  }
+  const exercises = await getTrainingForDate(selectedDate);
+  if (exercises.some(exercise => exercise.done)) {
+    alert("此日期已有完成的训练，请先重置训练后再标记休息。");
+    return;
+  }
+  if (!confirm(`将 ${formatSelectedDateLabel()} 标记为休息日？`)) return;
+  await supabaseClient.from("workouts").delete().eq("user_id", currentUser.id).eq("date", selectedDate);
+  await setRestStatus(selectedDate);
+  renderTraining();
+  renderProgress();
+}
 
 // ============ CALCULATIONS ============
 function calcBMR() { return Math.round(10*DATA.weight + 6.25*DATA.height - 5*DATA.age + (DATA.sex === "female" ? -161 : 5)); }
@@ -426,6 +613,7 @@ function showMainApp() {
 
 // ============ TAB SWITCHING ============
 function switchTab(tab) {
+  activeTab = tab;
   const tabs = ['overview','today','training','diet','progress'];
   document.querySelectorAll('#main-tabs .tab').forEach((t,i) => {
     const active = tabs[i] === tab;
@@ -436,14 +624,16 @@ function switchTab(tab) {
   document.getElementById('page-'+tab).classList.add('active');
   if (tab === 'overview') renderOverview();
   if (tab === 'today') renderToday();
+  if (tab === 'training') renderTraining();
   if (tab === 'progress') renderProgress();
   if (tab === 'diet') renderDiet();
+  updateDateContext();
 }
 
 // ============ OVERVIEW + TODAY ============
-async function getTodayMeals() {
+async function getMealsForDate(date = selectedDate) {
   if (!currentUser) return [];
-  const { data: meals } = await supabaseClient.from("meals").select("*").eq("user_id", currentUser.id).eq("date", today);
+  const { data: meals } = await supabaseClient.from("meals").select("*").eq("user_id", currentUser.id).eq("date", date);
   return meals || [];
 }
 
@@ -524,6 +714,12 @@ function escapeHtml(value) {
   })[char]);
 }
 
+async function getWeightForDate(date = selectedDate) {
+  if (!currentUser) return null;
+  const { data } = await supabaseClient.from("body_logs").select("date,weight").eq("user_id", currentUser.id).eq("date", date).limit(1);
+  return data && data[0] ? data[0] : null;
+}
+
 async function getLatestWeight() {
   if (!currentUser) return null;
   const { data } = await supabaseClient.from("body_logs").select("date,weight").eq("user_id", currentUser.id).order("date", { ascending: false }).limit(1);
@@ -532,9 +728,9 @@ async function getLatestWeight() {
 
 async function renderOverview() {
   if (!currentUser || !document.getElementById("page-overview")) return;
-  const exercises = await getTodayTraining();
+  const exercises = await getTrainingForDate(today);
   const done = exercises.filter(e => e.done).length;
-  const meals = await getTodayMeals();
+  const meals = await getMealsForDate(today);
   const totals = sumFoods(flattenFoods(meals));
   const macros = calcMacros();
   const latestWeight = await getLatestWeight();
@@ -555,14 +751,19 @@ async function renderOverview() {
 
 async function renderToday() {
   if (!currentUser || !document.getElementById("today-timeline")) return;
-  const exercises = await getTodayTraining();
+  const renderDate = selectedDate;
+  const exercises = await getTrainingForDate(renderDate);
   const done = exercises.filter(e => e.done).length;
-  const meals = await getTodayMeals();
+  const meals = await getMealsForDate(renderDate);
   const totals = sumFoods(flattenFoods(meals));
-  const latestWeight = await getLatestWeight();
+  const latestWeight = await getWeightForDate(renderDate);
+  if (renderDate !== selectedDate) return;
   const mealGroups = groupMealsByType(meals);
   const recordedMeals = MEAL_TYPES.filter(type => mealGroupSummary(mealGroups[type]).foods.length > 0).length;
-  document.getElementById("today-date-label").textContent = today;
+  const mode = selectedDateMode();
+  const mealAction = canEditSelectedDate() ? null : "查看饮食";
+  document.getElementById("selected-day-heading").textContent = mode === "today" ? "今天，稳稳推进" : mode === "future" ? `${formatSelectedDateLabel()}计划` : `${formatSelectedDateLabel()}记录`;
+  document.getElementById("today-date-label").textContent = selectedDate;
   document.getElementById("today-summary").innerHTML = `
     <div class="today-summary-item"><strong>${totals.cal}</strong><span>已摄入 kcal</span></div>
     <div class="today-summary-item"><strong>${recordedMeals}/4</strong><span>已记录餐次</span></div>
@@ -579,15 +780,15 @@ async function renderToday() {
         <button class="timeline-card timeline-action" type="button" onclick="openDietForMeal('${type}')" aria-label="${recorded ? "继续添加" : "记录"}${type}">
           <h3>${recorded ? `${mealTotals.cal} kcal · ${foods.length} 项` : `${type}还未记录`}</h3>
           <p class="timeline-foods">${recorded ? `${names}${more}` : "前往饮食页添加本餐食物"}</p>
-          <span class="timeline-card-action"><span>${recorded ? "继续添加" : "去记录"}</span><span>→</span></span>
+          <span class="timeline-card-action"><span>${mealAction || (recorded ? "继续添加" : "去记录")}</span><span>→</span></span>
         </button>
       </div>
     `;
   }).join("");
   document.getElementById("today-timeline").innerHTML = `
-    <div class="timeline-item"><div class="timeline-time">08:00 · 体重</div><div class="timeline-card"><h3>${latestWeight && latestWeight.date === today ? `今日体重 ${latestWeight.weight}kg` : "记录今日体重"}</h3><p>同步到进度与设置计算</p></div></div>
+    <div class="timeline-item"><div class="timeline-time">08:00 · 体重</div><div class="timeline-card"><h3>${latestWeight ? `${formatSelectedDateLabel()}体重 ${latestWeight.weight}kg` : "尚未记录体重"}</h3><p>同步到进度与设置计算</p></div></div>
     ${mealTimeline}
-    <div class="timeline-item"><div class="timeline-time">19:30 · 训练</div><div class="timeline-card"><h3>今日训练 ${done}/${exercises.length}</h3><p>${exercises.length ? "继续完成当前训练计划" : "选择一个训练模板开始"}</p></div></div>
+    <div class="timeline-item"><div class="timeline-time">19:30 · 训练</div><div class="timeline-card"><h3>${mode === "today" ? "今日训练" : `${formatSelectedDateLabel()}训练`} ${done}/${exercises.length}</h3><p>${exercises.length ? "继续完成当前训练计划" : "选择一个训练模板开始"}</p></div></div>
     <div class="timeline-item"><div class="timeline-time">睡前 · 小结</div><div class="timeline-card"><h3>完成全部记录后生成</h3><p>回顾训练、饮食和体重变化</p></div></div>
   `;
 }
@@ -628,7 +829,12 @@ async function generateSuggestions() {
 
 async function renderSuggestions() {
   var panel = document.getElementById("suggestion-panel");
+  var renderDate = selectedDate;
   var suggestions = await generateSuggestions();
+  if (renderDate !== selectedDate || selectedDateMode() !== "today") {
+    panel.style.display = "none";
+    return;
+  }
   if (suggestions.length === 0) { panel.style.display = "none"; return; }
   panel.style.display = "block";
   var html = '<div class=sug-title>🧠 智能建议</div>';
@@ -644,8 +850,8 @@ async function renderSuggestions() {
 }
 
 async function applySuggestion(exName,newWeight) {
-  if(!currentUser)return;
-  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  if(!currentUser||!canEditSelectedDate())return;
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",selectedDate).single();
   if(!workout)return;
   const exercises=workout.exercises;
   for(const ex of exercises){if(ex.name===exName){ex.weight=newWeight;break;}}
@@ -654,22 +860,27 @@ async function applySuggestion(exName,newWeight) {
 }
 
 // ============ TRAINING ============
-async function getTodayTraining() {
+async function getTrainingForDate(date = selectedDate) {
   if(!currentUser)return[];
-  const{data}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).limit(1);
-  if(!data||data.length===0){
-    const all=await getAllTemplates();const t=all[0];if(!t)return[];
-    const nw={user_id:currentUser.id,date:today,template_name:t.name,exercises:t.exercises.map(e=>({...e,done:false}))};
-    const{data:inserted}=await supabaseClient.from("workouts").insert(nw).select().single();
-    return inserted?inserted.exercises:[];
-  }
+  const{data}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",date).limit(1);
+  if(!data||data.length===0)return[];
   return data[0].exercises;
 }
 
 async function renderTraining() {
   const list = document.getElementById('exercise-list');
-  const exercises = await getTodayTraining();
+  const renderDate = selectedDate;
+  const exercises = await getTrainingForDate(renderDate);
+  const statuses = await getDailyStatuses(renderDate, renderDate);
+  if (renderDate !== selectedDate) return;
+  const isRest = statuses[renderDate] === "rest";
+  const mode = selectedDateMode();
+  const editable = canEditSelectedDate();
+  const plannable = canPlanSelectedDate();
   const period = DATA.period;
+  document.getElementById("training-date-heading").textContent = `${formatSelectedDateLabel()}训练`;
+  document.getElementById("stat-date-ex-label").textContent = mode === "future" ? "计划动作" : mode === "today" ? "今日动作" : "日期动作";
+  document.getElementById("stat-date-cal-label").textContent = mode === "future" ? "计划消耗" : "预估消耗";
   document.getElementById('period-badge').textContent = period === 'bulk' ? '增肌期' : '减脂期';
   document.getElementById('period-badge').className = 'badge ' + (period === 'bulk' ? 'badge-red' : 'badge-green');
   document.querySelectorAll('.period-btn').forEach(b => {
@@ -677,7 +888,8 @@ async function renderTraining() {
   });
   
   if (exercises.length === 0) {
-    list.innerHTML = '<div class="empty"><p>选择一个训练模板开始，或点击「管理」创建自己的模板</p></div>';
+    const message = isRest ? "此日期已标记为休息日" : mode === "readonly" ? "此日期没有训练记录" : mode === "future" ? "选择一个模板安排未来训练" : "选择一个训练模板开始，或标记为休息日";
+    list.innerHTML = `<div class="empty"><p>${message}</p></div>`;
   } else {
     list.innerHTML = exercises.map((ex, i) => `
       <div class="exercise-item ${ex.done ? 'done' : ''}">
@@ -685,25 +897,34 @@ async function renderTraining() {
           <div class="ex-name">${ex.name}</div>
           <div class="ex-detail">${ex.sets}组 × ${ex.reps}次 · ${ex.weight}kg</div>
         </div>
-        <div class="ex-edit-group">
-          <input type="number" inputmode="decimal" value="${ex.weight}" onchange="updateExParam(${i},'weight',this.value)" title="重量kg" aria-label="${ex.name} 重量kg">
-          <input type="number" inputmode="numeric" value="${ex.sets}" onchange="updateExParam(${i},'sets',this.value)" title="组数" aria-label="${ex.name} 组数">
+        <div class="ex-edit-group" ${editable ? "" : 'aria-hidden="true"'}>
+          <input type="number" inputmode="decimal" value="${ex.weight}" onchange="updateExParam(${i},'weight',this.value)" title="重量kg" aria-label="${ex.name} 重量kg" ${editable ? "" : "disabled"}>
+          <input type="number" inputmode="numeric" value="${ex.sets}" onchange="updateExParam(${i},'sets',this.value)" title="组数" aria-label="${ex.name} 组数" ${editable ? "" : "disabled"}>
         </div>
-        <div class="ex-check ${ex.done ? 'checked' : ''}" onclick="toggleExercise(${i})">${ex.done ? '✓' : ''}</div>
+        <button class="ex-check ${ex.done ? 'checked' : ''}" type="button" onclick="toggleExercise(${i})" ${editable ? "" : "disabled"} aria-label="${ex.name} ${ex.done ? "已完成" : "未完成"}">${ex.done ? '✓' : ''}</button>
       </div>
     `).join('');
   }
+  document.getElementById("template-select").disabled = !plannable;
+  document.getElementById("training-reset-button").disabled = !editable;
+  document.getElementById("training-finish-button").disabled = !editable || exercises.length === 0;
+  document.getElementById("training-rest-button").style.display = editable && selectedDate !== today ? "block" : "none";
+  document.getElementById("training-rest-button").textContent = isRest ? "取消休息日" : "标记为休息日";
   const doneCount = exercises.filter(e => e.done).length;
   document.getElementById('stat-today-ex').textContent = `${doneCount}/${exercises.length}`;
   document.getElementById('stat-today-cal').textContent = exercises.length * 65;
   updateAllStats();
-  renderSuggestions();
+  if (mode === "today") {
+    renderSuggestions();
+  } else {
+    document.getElementById("suggestion-panel").style.display = "none";
+  }
   refreshTemplateSelect();
 }
 
 async function toggleExercise(i) {
-  if(!currentUser)return;
-  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  if(!currentUser||!canEditSelectedDate())return;
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",selectedDate).single();
   if(!workout)return;
   const exercises=workout.exercises;exercises[i].done=!exercises[i].done;
   await supabaseClient.from("workouts").update({exercises}).eq("id",workout.id);
@@ -711,37 +932,42 @@ async function toggleExercise(i) {
 }
 
 async function updateExParam(i,field,val) {
-  if(!currentUser)return;
-  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",today).single();
+  if(!currentUser||!canEditSelectedDate())return;
+  const{data:workout}=await supabaseClient.from("workouts").select("*").eq("user_id",currentUser.id).eq("date",selectedDate).single();
   if(!workout)return;
   const exercises=workout.exercises;exercises[i][field]=parseInt(val)||exercises[i][field];
   await supabaseClient.from("workouts").update({exercises}).eq("id",workout.id);
 }
 
 async function loadTemplate() {
+  if(!canPlanSelectedDate())return;
   const sel = document.getElementById('template-select');
   if (!sel.value) return;
 localStorage.setItem('fitplan_template', sel.value);
 const all = await getAllTemplates();
 const t = all.find(t => t.name === sel.value);
 if (t) {
-  await supabaseClient.from('workouts').delete().eq('user_id', currentUser.id).eq('date', today);
-  await supabaseClient.from('workouts').insert({ user_id: currentUser.id, date: today, template_name: t.name, exercises: t.exercises.map(e => ({...e, done: false})) });
+  await getDailyStatuses(selectedDate, selectedDate);
+  await clearRestStatus(selectedDate);
+  await supabaseClient.from('workouts').delete().eq('user_id', currentUser.id).eq('date', selectedDate);
+  await supabaseClient.from('workouts').insert({ user_id: currentUser.id, date: selectedDate, template_name: t.name, exercises: t.exercises.map(e => ({...e, done: false})) });
   renderTraining();
   }
 }
 
 async function resetToday() {
-  await supabaseClient.from("workouts").delete().eq("user_id",currentUser.id).eq("date",today);
+  if(!canEditSelectedDate())return;
+  await supabaseClient.from("workouts").delete().eq("user_id",currentUser.id).eq("date",selectedDate);
   renderTraining();
 }
 
 async function finishWorkout() {
-  const exercises=await getTodayTraining();
+  if(!canEditSelectedDate())return;
+  const exercises=await getTrainingForDate(selectedDate);
   if(!exercises||exercises.length===0)return;
   const doneCount=exercises.filter(e=>e.done).length;
   renderTraining();
-  const monthStart=today.slice(0,7)+"-01";
+  const monthStart=selectedDate.slice(0,7)+"-01";
   const{count}=await supabaseClient.from("workouts").select("*",{count:"exact",head:true}).eq("user_id",currentUser.id).gte("date",monthStart);
   alert("训练完成！"+doneCount+"/"+exercises.length+" 动作 \u2713  本月健身 "+(count||0)+" 次 \u{1F525}");
 }
@@ -1034,11 +1260,15 @@ async function deleteTemplate(i) {
 function getCafeteriaFoods() { return DEFAULT_FOODS; }
 
 async function renderDiet() {
+  const renderDate=selectedDate;
   const macros=calcMacros();
-  const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today);
+  const{data:meals}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",renderDate);
+  if(renderDate!==selectedDate)return;
+  const editable=canEditSelectedDate();
   const todayDiet=flattenFoods(meals);
   const totals=sumFoods(todayDiet);
   const totalCal=totals.cal,totalProtein=totals.protein,totalCarbs=totals.carbs,totalFat=totals.fat;
+  document.getElementById("diet-date-heading").textContent = `🍽 ${formatSelectedDateLabel()}饮食`;
   document.getElementById("diet-summary").textContent=totalCal+" / "+macros.target+" kcal";
   document.getElementById("diet-progress").style.width=Math.min(100,totalCal/macros.target*100)+"%";
   document.getElementById("macro-protein").textContent=totalProtein+"/"+macros.protein+"g";
@@ -1049,6 +1279,9 @@ async function renderDiet() {
   document.getElementById("bar-fat").style.width=Math.min(100,totalFat/macros.fat*100)+"%";
   renderFrequentFoods();
   ensureMealTypeSelection();
+  document.querySelectorAll(".diet-entry-card").forEach(card => card.style.display = editable ? "" : "none");
+  document.getElementById("diet-clear-button").style.display = editable && todayDiet.length ? "" : "none";
+  document.getElementById("diet-record-title").textContent = `📋 ${formatSelectedDateLabel()}记录`;
   const foods=getCafeteriaFoods();
   document.getElementById("cafeteria-chips").innerHTML=foods.map((f,i)=>"<button class=food-chip onclick=addCafeteriaFood("+i+")>"+f.name+" <span style=font-size:10px;opacity:0.7;>"+f.cal+"kcal</span></button>").join("");
   const todayDiv=document.getElementById("today-foods");
@@ -1065,7 +1298,7 @@ async function renderDiet() {
         ${items.map(({meal,food,index})=>`<div class="food-item">
           <span class="food-name">${escapeHtml(food.name)}</span>
           <span class="food-cal">${food.cal||0} kcal</span>
-          <button class="btn btn-sm btn-outline food-delete" onclick="removeFood('${meal.id}',${index})" aria-label="删除 ${escapeHtml(food.name)}">×</button>
+          ${editable ? `<button class="btn btn-sm btn-outline food-delete" onclick="removeFood('${meal.id}',${index})" aria-label="删除 ${escapeHtml(food.name)}">×</button>` : ""}
         </div>`).join("")}
       </div>`;
     }).join("");
@@ -1152,11 +1385,11 @@ async function refreshDietViews() {
 }
 
 async function addFoodToToday(food, mealType = selectedMealType()) {
-  if(!currentUser)return;
+  if(!currentUser||!canEditSelectedDate())return;
   const normalizedType=normalizeMealType(mealType);
-  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",today).eq("meal_type",normalizedType).limit(1).maybeSingle();
+  const{data:meal}=await supabaseClient.from("meals").select("*").eq("user_id",currentUser.id).eq("date",selectedDate).eq("meal_type",normalizedType).limit(1).maybeSingle();
   if(meal){const foods=meal.foods||[];foods.push(food);await supabaseClient.from("meals").update({foods,total_kcal:foods.reduce((s,f)=>s+(f.cal||0),0)}).eq("id",meal.id);}
-  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:today,meal_type:normalizedType,foods:[food],total_kcal:food.cal||0});}
+  else{await supabaseClient.from("meals").insert({user_id:currentUser.id,date:selectedDate,meal_type:normalizedType,foods:[food],total_kcal:food.cal||0});}
   await refreshDietViews();
 }
 
@@ -1220,7 +1453,7 @@ async function addCustomFood() {
 }
 
 async function removeFood(mealId, foodIndex) {
-  if(!currentUser)return;
+  if(!currentUser||!canEditSelectedDate())return;
   const{data:meal}=await supabaseClient.from("meals").select("*").eq("id",mealId).eq("user_id",currentUser.id).maybeSingle();
   if(!meal)return;
   const foods=[...(meal.foods||[])];
@@ -1231,15 +1464,24 @@ async function removeFood(mealId, foodIndex) {
   await refreshDietViews();
 }
 async function clearTodayDiet() {
-  await supabaseClient.from("meals").delete().eq("user_id",currentUser.id).eq("date",today);
+  if(!canEditSelectedDate())return;
+  await supabaseClient.from("meals").delete().eq("user_id",currentUser.id).eq("date",selectedDate);
   await refreshDietViews();
 }
 
 // ============ PROGRESS ============
-function renderProgress() { renderWeightChart(); renderWeeklyTrainingRecord(); updateAllStats(); }
+function renderProgress() {
+  const row = document.getElementById("weight-entry-row");
+  if (row) row.style.display = canEditSelectedDate() ? "flex" : "none";
+  const input = document.getElementById("new-weight");
+  if (input) input.placeholder = `记录 ${formatSelectedDateLabel()} 体重 (kg)`;
+  renderWeightChart();
+  renderWeeklyTrainingRecord();
+  updateAllStats();
+}
 
-function weekDates() {
-  const now = new Date();
+function weekDates(anchorDate = selectedDate) {
+  const now = parseLocalDate(anchorDate);
   const day = now.getDay() || 7;
   const monday = new Date(now);
   monday.setDate(now.getDate() - day + 1);
@@ -1247,15 +1489,16 @@ function weekDates() {
   for (let i = 0; i < 7; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    dates.push(d.toISOString().slice(0,10));
+    dates.push(TD(d));
   }
   return dates;
 }
 
 async function renderWeeklyTrainingRecord() {
   if (!currentUser || !document.getElementById("weekly-training-record")) return;
-  const dates = weekDates();
+  const dates = weekDates(selectedDate);
   const { data: workouts } = await supabaseClient.from("workouts").select("*").eq("user_id", currentUser.id).gte("date", dates[0]).lte("date", dates[6]).order("date", { ascending: true });
+  const statuses = await getDailyStatuses(dates[0], dates[6]);
   const byDate = {};
   for (const workout of workouts || []) byDate[workout.date] = workout;
   const labels = ["一","二","三","四","五","六","日"];
@@ -1270,9 +1513,10 @@ async function renderWeeklyTrainingRecord() {
     totalSets += exercises.reduce((sum, e) => sum + (e.done ? (parseInt(e.sets) || 0) : 0), 0);
     burn += done * 65;
     const isFuture = date > today;
-    const state = done > 0 ? "workout" : isFuture ? "future" : "rest";
-    const mark = done > 0 ? "✓" : isFuture ? "" : "休";
-    return `<div class="week-day ${state}"><span>${labels[i]}</span><strong>${mark}</strong></div>`;
+    const isRest = statuses[date] === "rest";
+    const state = done > 0 ? "workout" : isRest ? "rest" : isFuture ? "future" : "unrecorded";
+    const mark = done > 0 ? "✓" : isRest ? "休" : isFuture ? "" : "·";
+    return `<div class="week-day ${state}" data-date="${date}"><span>${labels[i]}</span><strong>${mark}</strong></div>`;
   }).join("");
   document.getElementById("weekly-training-days").innerHTML = `<div class="week-record">${html}</div>`;
   document.getElementById("weekly-training-summary").textContent = `已训练 ${trained}/${DATA.frequency || 4} 天`;
@@ -1294,9 +1538,10 @@ async function renderWeightChart() {
   document.getElementById("stat-weight-change").textContent=(data[data.length-1].weight-data[0].weight).toFixed(1);
 }
 async function recordWeight() {
+  if(!canEditSelectedDate())return;
   const w=parseFloat(document.getElementById("new-weight").value);
   if(!w||w<30||w>300)return;
-  await supabaseClient.from("body_logs").upsert({user_id:currentUser.id,date:today,weight:w},{onConflict:"user_id,date"});
+  await supabaseClient.from("body_logs").upsert({user_id:currentUser.id,date:selectedDate,weight:w},{onConflict:"user_id,date"});
   document.getElementById("new-weight").value="";
   renderProgress();
 }
