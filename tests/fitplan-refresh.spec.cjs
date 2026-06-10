@@ -41,7 +41,9 @@ function startServer() {
 }
 
 async function main() {
-  const { server, url } = await startServer();
+  const remoteUrl = process.env.FITPLAN_BASE_URL;
+  const local = remoteUrl ? null : await startServer();
+  const url = remoteUrl || local.url;
   const browser = await chromium.launch({
     headless: true,
     executablePath: edgePath,
@@ -57,8 +59,7 @@ async function main() {
     await page.fill("#login-email", "user@fitplan.com");
     await page.fill("#login-password", "fitplan123");
     await page.click("#login-form .btn-primary");
-    await page.waitForTimeout(9000);
-    await page.waitForSelector("#page-overview.active", { timeout: 10000 });
+    await page.waitForSelector("#page-overview.active", { timeout: 30000 });
 
     const state = await page.evaluate(() => {
       const ids = ["overview", "today", "training", "diet", "progress"];
@@ -143,7 +144,11 @@ async function main() {
     }
 
     await page.click("#tab-today");
-    await page.waitForTimeout(1200);
+    await page.waitForFunction(
+      (name) => document.querySelector('[data-meal-type="晚餐"]')?.innerText.includes(name),
+      mealTestName,
+      { timeout: 15000 },
+    );
     const todayMealState = await page.evaluate((name) => ({
       hasSummary: !!document.querySelector("#today-summary"),
       breakfastTime: document.querySelector('[data-meal-type="早餐"] .timeline-time')?.textContent || "",
@@ -168,7 +173,11 @@ async function main() {
     await page.click("#tab-training");
     await page.waitForTimeout(1500);
     await page.getByRole("button", { name: /管理|模板/ }).first().click();
-    await page.waitForTimeout(500);
+    await page.waitForFunction(
+      () => window.getComputedStyle(document.querySelector("#template-modal")).display !== "none",
+      null,
+      { timeout: 15000 },
+    );
     const templateState = await page.evaluate(() => ({
       visible: window.getComputedStyle(document.querySelector("#template-modal")).display !== "none",
       text: document.querySelector("#template-modal")?.innerText || "",
@@ -208,7 +217,7 @@ async function main() {
     console.log("fitplan refresh smoke passed");
   } finally {
     await browser.close();
-    server.close();
+    local?.server.close();
   }
 }
 

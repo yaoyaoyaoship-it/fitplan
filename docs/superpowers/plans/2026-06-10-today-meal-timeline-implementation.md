@@ -59,6 +59,6 @@
 
 - [x] Run the Playwright smoke test and confirm the new regression passes.
 - [x] Run `node --check fitplan.js` and `git diff --check`.
-- [ ] Commit and push to `main`.
-- [ ] Wait for GitHub Pages to publish the new markers.
-- [ ] Run the meal flow against the deployed site and remove the test record.
+- [x] Commit and push to `main`.
+- [x] Wait for GitHub Pages to publish the new markers.
+- [x] Run the meal flow against the deployed site and remove the test record.
