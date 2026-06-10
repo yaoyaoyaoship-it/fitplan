@@ -73,6 +73,6 @@
 - [x] Run `node --check fitplan.js`.
 - [x] Run `git diff --check`.
 - [x] Run local Playwright smoke.
-- [ ] Commit and push to `main`.
-- [ ] Wait for GitHub Pages and run online meal-navigation smoke.
-- [ ] Report the one-time SQL migration requirement if the remote table is still unavailable.
+- [x] Commit and push to `main`.
+- [x] Wait for GitHub Pages and run online meal-navigation and custom-exercise smoke.
+- [x] Report the one-time SQL migration requirement because the remote table has not been deployed.
