@@ -92,6 +92,21 @@ async function main() {
     };
     await page.click("#tab-today");
     await page.waitForSelector("#date-context-bar", { state: "visible", timeout: 5000 });
+    await page.setViewportSize({ width: 320, height: 800 });
+    const dateBarLayout = await page.evaluate(() => {
+      const bar = document.querySelector("#date-context-bar").getBoundingClientRect();
+      const previous = document.querySelector("#date-context-bar .date-step:first-child").getBoundingClientRect();
+      const input = document.querySelector("#selected-date-input").getBoundingClientRect();
+      const next = document.querySelector("#date-context-bar .date-step:last-child").getBoundingClientRect();
+      return {
+        insideBar: previous.left >= bar.left && next.right <= bar.right,
+        noOverlap: previous.right <= input.left && input.right <= next.left,
+      };
+    });
+    if (!dateBarLayout.insideBar || !dateBarLayout.noOverlap) {
+      throw new Error(`Date bar overlaps at 320px: ${JSON.stringify(dateBarLayout)}`);
+    }
+    await page.setViewportSize({ width: 430, height: 900 });
 
     await page.fill("#selected-date-input", dateString(-1));
     await page.dispatchEvent("#selected-date-input", "change");
