@@ -256,9 +256,10 @@ header h1 { color: var(--text); letter-spacing: -0.04em; }
 .date-context { display: none; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: start; gap: 7px; margin: 2px 14px 12px; padding: 9px; border-radius: 14px; background: var(--card); border: 1px solid var(--border); }
 .date-context.show { display: grid; }
 .date-step { width: 36px; height: 36px; flex: 0 0 auto; padding: 0; border: 0; border-radius: 10px; background: #e4efeb; color: var(--text); font-size: 17px; cursor: pointer; }
-.date-input-wrap { flex: 1; min-width: 0; }
-.date-input-wrap input { display: block; width: 100%; min-width: 0; max-width: 100%; height: 36px; box-sizing: border-box; padding: 0 7px; border: 1px solid #d2e2dc; border-radius: 10px; background: #eef6f3; color: var(--text); font: inherit; font-size: 12px; font-weight: 750; }
-.date-input-wrap input::-webkit-date-and-time-value { min-width: 0; text-align: center; }
+.date-input-wrap { position: relative; min-width: 0; }
+.date-input-control { position: relative; height: 36px; overflow: hidden; border: 1px solid #d2e2dc; border-radius: 10px; background: #eef6f3; }
+.date-input-display { display: grid; place-items: center; width: 100%; height: 100%; color: var(--text); font-size: 12px; font-weight: 750; pointer-events: none; }
+.date-input-wrap input { position: absolute; inset: 0; width: 100%; min-width: 0; max-width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; }
 .btn:disabled, button:disabled, select:disabled, input:disabled {
   opacity: .48;
   cursor: not-allowed;
@@ -385,7 +386,10 @@ header h1 { color: var(--text); letter-spacing: -0.04em; }
 <div class="date-context" id="date-context-bar" data-mode="today">
   <button class="date-step" type="button" onclick="shiftSelectedDate(-1)" aria-label="前一天">‹</button>
   <div class="date-input-wrap">
-    <input id="selected-date-input" type="date" onchange="handleSelectedDateChange(this.value)" aria-label="记录日期">
+    <div class="date-input-control">
+      <span class="date-input-display" id="selected-date-display">选择日期</span>
+      <input id="selected-date-input" type="date" onchange="handleSelectedDateChange(this.value)" aria-label="记录日期">
+    </div>
     <div class="date-context-meta">
       <span class="date-mode" id="date-mode-label">今天</span>
       <button class="date-today" id="date-today-button" type="button" onclick="goToToday()">回到今天</button>

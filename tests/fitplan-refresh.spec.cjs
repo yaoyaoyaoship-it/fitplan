@@ -96,14 +96,16 @@ async function main() {
     const dateBarLayout = await page.evaluate(() => {
       const bar = document.querySelector("#date-context-bar").getBoundingClientRect();
       const previous = document.querySelector("#date-context-bar .date-step:first-child").getBoundingClientRect();
+      const control = document.querySelector(".date-input-control").getBoundingClientRect();
       const input = document.querySelector("#selected-date-input").getBoundingClientRect();
       const next = document.querySelector("#date-context-bar .date-step:last-child").getBoundingClientRect();
       return {
         insideBar: previous.left >= bar.left && next.right <= bar.right,
-        noOverlap: previous.right <= input.left && input.right <= next.left,
+        noOverlap: previous.right <= control.left && control.right <= next.left,
+        pickerContained: input.left >= control.left && input.right <= control.right,
       };
     });
-    if (!dateBarLayout.insideBar || !dateBarLayout.noOverlap) {
+    if (!dateBarLayout.insideBar || !dateBarLayout.noOverlap || !dateBarLayout.pickerContained) {
       throw new Error(`Date bar overlaps at 320px: ${JSON.stringify(dateBarLayout)}`);
     }
     await page.setViewportSize({ width: 430, height: 900 });

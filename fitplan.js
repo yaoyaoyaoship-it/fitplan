@@ -66,9 +66,10 @@ function formatSelectedDateLabel() {
 function updateDateContext() {
   const bar = document.getElementById("date-context-bar");
   const input = document.getElementById("selected-date-input");
+  const display = document.getElementById("selected-date-display");
   const label = document.getElementById("date-mode-label");
   const notice = document.getElementById("date-context-notice");
-  if (!bar || !input || !label || !notice) return;
+  if (!bar || !input || !display || !label || !notice) return;
   const mode = selectedDateMode();
   const labels = { today: "今天", "editable-past": "可补录", readonly: "只读历史", future: "未来计划" };
   const notices = {
@@ -78,6 +79,7 @@ function updateDateContext() {
     future: "未来日期仅能安排训练计划，不能记录完成状态、饮食或体重。",
   };
   input.value = selectedDate;
+  display.textContent = `${parseLocalDate(selectedDate).getFullYear()}年${formatSelectedDateLabel()}`;
   bar.dataset.mode = mode;
   label.textContent = `${formatSelectedDateLabel()} · ${labels[mode]}`;
   label.className = `date-mode ${mode}`;
